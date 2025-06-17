@@ -1,0 +1,33 @@
+# Simple CSV Processing Example
+pipeline_name: simple_csv_example
+tags: [example, csv, test]
+
+# No state needed for this example
+variables:
+  input_file: "data/sample_data.csv"
+  output_file: "output/processed_data.csv"
+
+steps:
+  # Read CSV file
+  - id: read_csv_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+
+  # Validate the data
+  - id: validate_csv_data
+    type: processor
+    processor_type: validator
+    depends_on: [read_csv_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+
+  # Save processed data
+  - id: save_processed_csv
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_csv_data]
+    config:
+      file_path: "{{ var('output_file') }}"

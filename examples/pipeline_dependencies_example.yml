@@ -1,0 +1,122 @@
+# Example: Pipeline Dependencies
+# This example demonstrates how to create pipelines with dependencies
+# 
+# To use this example:
+# 1. Copy these files to your pipelines/ directory
+# 2. Run: dft run --select +reporting_pipeline+
+# 3. Observe the execution order: raw_data → processed_data → reporting_pipeline
+
+# File 1: pipelines/raw_data_pipeline.yml
+---
+pipeline_name: raw_data_pipeline
+tags: [raw, base, daily]
+
+variables:
+  input_file: "data/sample_data.csv"
+  output_file: "output/raw_data.csv"
+
+steps:
+  - id: extract_raw_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+  
+  - id: validate_raw_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_raw_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+  
+  - id: save_raw_data
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_raw_data]
+    config:
+      file_path: "{{ var('output_file') }}"
+
+---
+# File 2: pipelines/processed_data_pipeline.yml
+pipeline_name: processed_data_pipeline
+tags: [processed, transformation, daily]
+depends_on: [raw_data_pipeline]  # Depends on raw data pipeline
+
+variables:
+  input_file: "output/raw_data.csv"
+  output_file: "output/processed_data.csv"
+
+steps:
+  - id: read_raw_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+  
+  - id: validate_processed_input
+    type: processor
+    processor_type: validator
+    depends_on: [read_raw_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+  
+  - id: save_processed_data
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_processed_input]
+    config:
+      file_path: "{{ var('output_file') }}"
+
+---
+# File 3: pipelines/reporting_pipeline.yml
+pipeline_name: reporting_pipeline
+tags: [reporting, final, daily]
+depends_on: [processed_data_pipeline]  # Depends on processed data
+
+variables:
+  input_file: "output/processed_data.csv"
+  output_file: "output/final_report.csv"
+
+steps:
+  - id: read_processed_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+  
+  - id: validate_report_data
+    type: processor
+    processor_type: validator
+    depends_on: [read_processed_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+  
+  - id: save_final_report
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_report_data]
+    config:
+      file_path: "{{ var('output_file') }}"
+
+# Usage Examples:
+#
+# # Run all pipelines in dependency order
+# dft run
+# 
+# # Run only upstream dependencies of reporting_pipeline
+# dft run --select +reporting_pipeline
+# 
+# # Run only downstream dependencies of raw_data_pipeline
+# dft run --select raw_data_pipeline+
+# 
+# # Run the entire dependency graph of processed_data_pipeline
+# dft run --select +processed_data_pipeline+
+# 
+# # Run pipelines with specific tags in dependency order
+# dft run --select tag:daily
+# 
+# # Exclude certain pipelines but maintain dependency order
+# dft run --exclude tag:slow

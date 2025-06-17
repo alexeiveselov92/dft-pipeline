@@ -1,0 +1,293 @@
+"""Pipeline execution runner"""
+
+from typing import Any, Dict, List, Optional
+from datetime import datetime
+import logging
+from pathlib import Path
+
+from .config import ProjectConfig, PipelineLoader
+from .pipeline import Pipeline, PipelineStep
+from .factory import ComponentFactory
+from .state import PipelineState, IncrementalProcessor
+from ..utils.template import TemplateRenderer
+from ..utils.logging import PipelineLogger
+
+
+class PipelineRunner:
+    """Main pipeline execution engine"""
+    
+    def __init__(self):
+        self.project_config = ProjectConfig()
+        self.pipeline_loader = PipelineLoader(self.project_config)
+        self.factory = ComponentFactory(self.project_config)
+        self.template_renderer = TemplateRenderer()
+        self.logger = logging.getLogger("dft.runner")
+    
+    def run(
+        self,
+        select: Optional[str] = None,
+        exclude: Optional[str] = None,
+        variables: Optional[Dict[str, Any]] = None,
+        full_refresh: bool = False
+    ) -> bool:
+        """Run selected pipelines"""
+        
+        # Find pipelines to run
+        pipelines = self.pipeline_loader.find_pipelines(select, exclude)
+        
+        if not pipelines:
+            self.logger.info("No pipelines found matching criteria")
+            return True
+        
+        # Sort pipelines by dependencies
+        try:
+            ordered_pipelines = self._resolve_pipeline_dependencies(pipelines)
+        except ValueError as e:
+            self.logger.error(f"Pipeline dependency error: {e}")
+            return False
+        
+        # Merge variables from config and command line
+        all_variables = {
+            **self.project_config.variables,
+            **(variables or {})
+        }
+        
+        self.logger.info(f"Running {len(ordered_pipelines)} pipeline(s) in dependency order")
+        
+        overall_success = True
+        failed_pipelines = set()
+        
+        # Execute pipelines in dependency order
+        for pipeline in ordered_pipelines:
+            try:
+                # Check if any dependencies failed
+                if self._has_failed_dependencies(pipeline, failed_pipelines):
+                    self.logger.warning(f"Skipping pipeline {pipeline.name} due to failed dependencies")
+                    failed_pipelines.add(pipeline.name)
+                    overall_success = False
+                    continue
+                
+                success = self.run_pipeline(pipeline, all_variables, full_refresh)
+                if not success:
+                    failed_pipelines.add(pipeline.name)
+                    overall_success = False
+            except Exception as e:
+                self.logger.error(f"Failed to run pipeline {pipeline.name}: {e}")
+                failed_pipelines.add(pipeline.name)
+                overall_success = False
+        
+        return overall_success
+    
+    def run_pipeline(
+        self, 
+        pipeline: Pipeline, 
+        variables: Dict[str, Any], 
+        full_refresh: bool = False
+    ) -> bool:
+        """Run single pipeline"""
+        
+        pipeline_logger = PipelineLogger(pipeline.name)
+        pipeline_logger.set_total_steps(len(pipeline.steps))
+        execution_id = pipeline_logger.log_pipeline_start()
+        
+        # Initialize pipeline state for incremental processing
+        pipeline_state = PipelineState(pipeline.name)
+        incremental_processor = IncrementalProcessor(pipeline_state)
+        
+        # Add state and incremental processor to variables for template access
+        variables = {
+            **variables,
+            **pipeline.variables,  # Add pipeline variables
+            'state': pipeline_state,
+            'incremental': incremental_processor,
+        }
+        
+        try:
+            pipeline.status = "running"
+            pipeline.start_time = datetime.now()
+            
+            # Record pipeline run start
+            pipeline_state.add_run_record("running", pipeline.start_time)
+            
+            # Get execution order
+            execution_order = pipeline.get_execution_order()
+            
+            # Store step results for template rendering
+            step_results = {}
+            
+            # Execute steps in order
+            for step_id in execution_order:
+                step = pipeline.get_step(step_id)
+                if not step:
+                    continue
+                
+                success = self.run_step(
+                    step, 
+                    pipeline, 
+                    variables, 
+                    step_results, 
+                    pipeline_logger,
+                    full_refresh
+                )
+                
+                if not success:
+                    pipeline.status = "failed"
+                    pipeline_logger.log_pipeline_complete(execution_id, False)
+                    return False
+            
+            pipeline.status = "success"
+            pipeline.end_time = datetime.now()
+            
+            # Record successful pipeline run
+            pipeline_state.add_run_record("success", pipeline.start_time, pipeline.end_time)
+            
+            pipeline_logger.log_pipeline_complete(execution_id, True)
+            return True
+            
+        except Exception as e:
+            pipeline.status = "failed"
+            pipeline.end_time = datetime.now()
+            
+            # Record failed pipeline run
+            pipeline_state.add_run_record("failed", pipeline.start_time, pipeline.end_time, str(e))
+            
+            self.logger.error(f"Pipeline {pipeline.name} failed: {e}")
+            pipeline_logger.log_pipeline_complete(execution_id, False)
+            return False
+    
+    def run_step(
+        self,
+        step: PipelineStep,
+        pipeline: Pipeline,
+        variables: Dict[str, Any],
+        step_results: Dict[str, Any],
+        pipeline_logger: PipelineLogger,
+        full_refresh: bool = False
+    ) -> bool:
+        """Run single step"""
+        
+        try:
+            step.status = "running"
+            step.start_time = datetime.now()
+            
+            pipeline_logger.log_step_start(step.id)
+            
+            # Render step configuration with variables and previous results
+            rendered_config = self.template_renderer.render_config(
+                step.config, variables, step_results
+            )
+            
+            # Execute step based on type
+            if step.type == "source":
+                component = self.factory.create_source(step.source_type or "", rendered_config)
+                result = component.extract(variables)
+                
+            elif step.type == "processor":
+                component = self.factory.create_processor(step.processor_type or "", rendered_config)
+                
+                # Get input data from dependencies
+                if step.depends_on:
+                    # For now, use result from first dependency
+                    dep_step_id = step.depends_on[0]
+                    if dep_step_id in step_results:
+                        input_data = step_results[dep_step_id]
+                    else:
+                        raise ValueError(f"Dependency {dep_step_id} not found")
+                else:
+                    raise ValueError("Processor step requires dependencies")
+                
+                result = component.process(input_data, variables)
+                
+            elif step.type == "endpoint":
+                component = self.factory.create_endpoint(step.endpoint_type or "", rendered_config)
+                
+                # Get input data from dependencies  
+                if step.depends_on:
+                    dep_step_id = step.depends_on[0]
+                    if dep_step_id in step_results:
+                        input_data = step_results[dep_step_id]
+                    else:
+                        raise ValueError(f"Dependency {dep_step_id} not found")
+                else:
+                    raise ValueError("Endpoint step requires dependencies")
+                
+                success = component.load(input_data, variables)
+                result = input_data  # Pass through data
+                
+                if not success:
+                    raise RuntimeError("Failed to load data to endpoint")
+                    
+            else:
+                raise ValueError(f"Unknown step type: {step.type}")
+            
+            # Store result for use by dependent steps
+            step_results[step.id] = result
+            step.result = result
+            
+            step.status = "success"
+            step.end_time = datetime.now()
+            
+            # Log metrics
+            if result:
+                pipeline_logger.log_step_complete(
+                    step.id, True, result.row_count, result.size_mb
+                )
+            else:
+                pipeline_logger.log_step_complete(step.id, True)
+            
+            return True
+            
+        except Exception as e:
+            step.status = "failed"
+            step.end_time = datetime.now()
+            step.error_message = str(e)
+            
+            pipeline_logger.log_step_error(step.id, str(e))
+            return False
+    
+    def _resolve_pipeline_dependencies(self, pipelines: List[Pipeline]) -> List[Pipeline]:
+        """Resolve pipeline dependencies using topological sort"""
+        
+        # Create pipeline name to pipeline mapping
+        pipeline_map = {p.name: p for p in pipelines}
+        
+        # Validate that all dependencies exist
+        for pipeline in pipelines:
+            for dep in pipeline.depends_on:
+                if dep not in pipeline_map:
+                    raise ValueError(f"Pipeline {pipeline.name} depends on {dep} which is not found in selected pipelines")
+        
+        # Topological sort
+        visited = set()
+        temp_visited = set()
+        result = []
+        
+        def dfs(pipeline_name: str) -> None:
+            if pipeline_name in temp_visited:
+                raise ValueError(f"Circular dependency detected involving pipeline: {pipeline_name}")
+            
+            if pipeline_name in visited:
+                return
+            
+            temp_visited.add(pipeline_name)
+            
+            # Visit dependencies first
+            pipeline = pipeline_map[pipeline_name]
+            for dep in pipeline.depends_on:
+                if dep in pipeline_map:  # Only process dependencies that are in our selection
+                    dfs(dep)
+            
+            temp_visited.remove(pipeline_name)
+            visited.add(pipeline_name)
+            result.append(pipeline)
+        
+        # Process all pipelines
+        for pipeline in pipelines:
+            if pipeline.name not in visited:
+                dfs(pipeline.name)
+        
+        return result
+    
+    def _has_failed_dependencies(self, pipeline: Pipeline, failed_pipelines: set) -> bool:
+        """Check if any of the pipeline's dependencies have failed"""
+        return any(dep in failed_pipelines for dep in pipeline.depends_on)

@@ -1,0 +1,65 @@
+# Daily Revenue Analytics Pipeline
+pipeline_name: daily_revenue
+tags: [daily, revenue, core]
+
+# Incremental processing - automatically determines date range
+variables:
+  start_date: "{{ state.get('last_processed_date', days_ago(var('default_lookback_days'))) }}"
+  end_date: "{{ yesterday() }}"
+
+steps:
+  # Extract revenue data from production DB
+  - id: extract_revenue_data
+    type: source
+    source_type: postgresql
+    name: main_postgres
+    config:
+      query: |
+        SELECT 
+          DATE(transaction_date) as revenue_date,
+          user_id,
+          country_code,
+          platform,
+          revenue_usd,
+          transaction_id
+        FROM transactions 
+        WHERE transaction_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+        AND revenue_usd >= {{ var("min_revenue_threshold") }}
+        AND status = 'completed'
+        ORDER BY transaction_date, user_id
+
+  # Validate data quality
+  - id: validate_revenue_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_revenue_data]
+    config:
+      required_columns: [revenue_date, user_id, country_code, revenue_usd]
+      row_count_min: 1
+      checks:
+        - column: revenue_usd
+          min_value: 0
+        - column: country_code
+          not_null: true
+
+  # Save to analytics warehouse
+  - id: save_to_warehouse
+    type: endpoint
+    endpoint_type: clickhouse
+    name: analytics_warehouse
+    depends_on: [validate_revenue_data]
+    config:
+      table: "daily_revenue_raw"
+      auto_create: true
+      mode: "append"
+      schema:
+        revenue_date: "Date"
+        user_id: "String"
+        country_code: "String"
+        platform: "String"
+        revenue_usd: "Float64"
+        transaction_id: "String"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(revenue_date, country_code)"
+      partition_by: "toYYYYMM(revenue_date)"

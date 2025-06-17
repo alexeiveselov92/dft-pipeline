@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=64.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dft"
+version = "0.1.0"
+description = "Data Flow Tools - flexible ETL pipeline framework"
+authors = [{name = "DFT Team", email = "team@dft.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.0.0",
+    "pyyaml>=6.0",
+    "pyarrow>=12.0.0",
+    "jinja2>=3.0.0",
+    "python-dotenv>=1.0.0",
+    "rich>=13.0.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.scripts]
+dft = "dft.cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dft*"]

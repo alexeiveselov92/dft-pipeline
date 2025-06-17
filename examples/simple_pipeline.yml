@@ -1,0 +1,26 @@
+# Simple pipeline example
+pipeline_name: simple_example
+tags: [example, demo]
+
+steps:
+  - id: load_sample_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "examples/sample_data.csv"
+  
+  - id: validate_data
+    type: processor
+    processor_type: validator
+    depends_on: [load_sample_data]
+    config:
+      required_columns: [id, name, email]
+      row_count_min: 1
+      schema_check: true
+  
+  - id: save_processed_data
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_data]
+    config:
+      file_path: "examples/output/processed_data_{{ today() }}.csv"

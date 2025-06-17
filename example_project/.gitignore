@@ -1,0 +1,9 @@
+# Environment files with secrets
+.env
+
+# DFT runtime files
+.dft/
+*.log
+
+# Output files
+output/

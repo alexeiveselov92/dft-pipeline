@@ -1,0 +1,33 @@
+# Reporting Pipeline - Depends on analytics_pipeline  
+pipeline_name: reporting_pipeline
+tags: [reporting, final]
+depends_on: [analytics_pipeline]
+
+variables:
+  input_file: "output/analytics_data.csv"
+  output_file: "output/final_report.csv"
+
+steps:
+  # Read analytics data
+  - id: read_analytics_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+
+  # Final validation
+  - id: validate_report_input
+    type: processor
+    processor_type: validator
+    depends_on: [read_analytics_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+
+  # Save final report
+  - id: save_final_report
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_report_input]
+    config:
+      file_path: "{{ var('output_file') }}"

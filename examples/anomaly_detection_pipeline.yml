@@ -1,0 +1,81 @@
+# Anomaly Detection Pipeline for Revenue Monitoring
+pipeline_name: revenue_anomaly_detection
+tags: [hourly, monitoring, anomalies]
+
+# Variables for time range
+variables:
+  lookback_hours: 48
+  start_time: "{{ (now() | as_datetime) - timedelta(hours=var('lookback_hours')) }}"
+  end_time: "{{ now() }}"
+
+steps:
+  # Step 1: Extract revenue data from ClickHouse
+  - id: extract_revenue_data
+    type: source
+    source_type: clickhouse
+    config:
+      query: |
+        SELECT 
+          toStartOfHour(event_time) as timestamp,
+          country_code,
+          platform,
+          sum(revenue_usd) as revenue,
+          count() as transactions,
+          avg(revenue_usd) as avg_revenue_per_transaction
+        FROM revenue_events 
+        WHERE event_time >= '{{ var("start_time") }}'
+        AND event_time <= '{{ var("end_time") }}'
+        GROUP BY 
+          toStartOfHour(event_time),
+          country_code,
+          platform
+        ORDER BY timestamp, country_code, platform
+  
+  # Step 2: Detect anomalies using MAD detector
+  - id: detect_anomalies
+    type: processor
+    processor_type: mad_anomaly_detector
+    depends_on: [extract_revenue_data]
+    config:
+      value_column: "revenue"
+      timestamp_column: "timestamp"
+      group_column: "country_code"
+      feature_columns: ["platform"]
+      window_size: 72  # 72 hours of history
+      n_sigma: 3.0
+      use_weighted: true
+      weights_type: "exponential"
+      exp_decay_factor: 0.1
+      
+  # Step 3: Filter only significant anomalies
+  - id: filter_significant_anomalies
+    type: processor
+    processor_type: validator
+    depends_on: [detect_anomalies]
+    config:
+      # This is a placeholder - would need custom filter processor
+      required_columns: [timestamp, revenue, is_anomaly, anomaly_score]
+      
+  # Step 4: Save anomaly results
+  - id: save_anomaly_results
+    type: endpoint
+    endpoint_type: clickhouse
+    depends_on: [filter_significant_anomalies]
+    config:
+      table: "revenue_anomalies"
+      auto_create: true
+      mode: "append"
+      schema:
+        timestamp: "DateTime"
+        country_code: "String"
+        platform: "String"
+        revenue: "Float64"
+        mean: "Float64"
+        std: "Float64"
+        is_anomaly: "UInt8"
+        anomaly_score: "Float64"
+        anomaly_direction: "String"
+        p_value: "Float64"
+        lower_bound: "Float64"
+        upper_bound: "Float64"
+        detected_at: "DateTime DEFAULT now()"

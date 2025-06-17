@@ -1,0 +1,32 @@
+# Base Data Pipeline - First step in dependency chain
+pipeline_name: base_data_pipeline
+tags: [base, data_source]
+
+variables:
+  input_file: "data/sample_data.csv"
+  output_file: "output/base_data.csv"
+
+steps:
+  # Read source data
+  - id: read_source_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "{{ var('input_file') }}"
+
+  # Basic validation
+  - id: validate_source_data
+    type: processor
+    processor_type: validator
+    depends_on: [read_source_data]
+    config:
+      required_columns: [id, name, value]
+      row_count_min: 1
+
+  # Save base data
+  - id: save_base_data
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_source_data]
+    config:
+      file_path: "{{ var('output_file') }}"
