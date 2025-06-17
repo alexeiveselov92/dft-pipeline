@@ -12,7 +12,7 @@ steps:
   - id: extract_transaction_data
     type: source
     source_type: postgresql
-    name: main_postgres
+    connection: main_postgres
     config:
       query: |
         SELECT 
@@ -46,7 +46,7 @@ steps:
   - id: save_to_warehouse
     type: endpoint
     endpoint_type: clickhouse
-    name: analytics_warehouse
+    connection: analytics_warehouse
     depends_on: [validate_transaction_data]
     config:
       table: "daily_transactions_raw"

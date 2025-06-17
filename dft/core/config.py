@@ -41,7 +41,18 @@ class ProjectConfig:
     
     @property
     def sources(self) -> Dict[str, Any]:
-        return self.config.get("sources", {})
+        # Support both old 'sources' format and new 'connections' format
+        # Connections can be used as both sources and endpoints
+        connections = self.config.get("connections", {})
+        sources = self.config.get("sources", {})
+        
+        # Merge connections and sources (sources take precedence for backward compatibility)
+        return {**connections, **sources}
+    
+    @property
+    def connections(self) -> Dict[str, Any]:
+        """Get all connections (can be used as sources or endpoints)"""
+        return self.config.get("connections", {})
     
     @property
     def logging_config(self) -> Dict[str, Any]:

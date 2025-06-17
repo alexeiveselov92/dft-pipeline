@@ -29,7 +29,8 @@ Create `dft_project.yml` file:
 
 ```yaml
 # dft_project.yml
-sources:
+# Database and service connections (can be used as sources and endpoints)
+connections:
   my_postgres:
     type: postgresql
     host: "{{ env_var('POSTGRES_HOST') }}"
@@ -45,6 +46,15 @@ sources:
     database: "{{ env_var('CH_DATABASE') }}"
     user: "{{ env_var('CH_USER') }}"
     password: "{{ env_var('CH_PASSWORD') }}"
+    
+  # Multiple environments example  
+  clickhouse_staging:
+    type: clickhouse
+    host: "{{ env_var('CH_STAGE_HOST') }}"
+    port: 9000
+    database: "{{ env_var('CH_STAGE_DATABASE') }}"
+    user: "{{ env_var('CH_STAGE_USER') }}"
+    password: "{{ env_var('CH_STAGE_PASSWORD') }}"
 
 variables:
   default_start_date: "2024-01-01"
@@ -82,7 +92,7 @@ steps:
   - id: extract_events
     type: source
     source_type: postgresql
-    name: my_postgres
+    connection: my_postgres
     config:
       query: |
         SELECT 
@@ -106,7 +116,7 @@ steps:
   - id: save_to_warehouse
     type: endpoint
     endpoint_type: clickhouse
-    name: my_clickhouse
+    connection: my_clickhouse
     depends_on: [validate_data]
     config:
       table: "daily_events"
@@ -254,6 +264,39 @@ dft run --select base_data+
 
 # Run base_data and all its upstream/downstream dependencies
 dft run --select +base_data+
+```
+
+### Connection Reuse Example
+
+The same connection can be used as both source and endpoint:
+
+```yaml
+# Example: Data transformation within same database
+steps:
+  # Read from table A
+  - id: extract_raw_data
+    type: source
+    source_type: postgresql
+    connection: my_postgres  # Same connection
+    config:
+      query: "SELECT * FROM raw_table"
+  
+  # Transform data
+  - id: validate_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_raw_data]
+    config:
+      required_columns: [id, name]
+  
+  # Write to table B in same database
+  - id: save_processed_data
+    type: endpoint
+    endpoint_type: postgresql
+    connection: my_postgres  # Same connection reused
+    depends_on: [validate_data]
+    config:
+      table: "processed_table"
 ```
 
 ### Dependency Validation
