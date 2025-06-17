@@ -156,17 +156,18 @@ dft run --select +pipeline_name   # Run upstream dependencies
 dft run --select pipeline_name+   # Run downstream dependencies  
 dft run --select +pipeline_name+  # Run all related pipelines
 
-# Testing
-dft test                          # Test all pipelines
-dft test --select my_pipeline     # Test specific pipeline
+# Testing and validation
+dft test                          # Validate all pipeline configurations
+dft test --select my_pipeline     # Validate specific pipeline
 
 # Dependency analysis
 dft deps                          # Show all dependencies
 dft deps --select my_pipeline     # Dependencies for pipeline
 
-# Documentation
+# Documentation and utilities
 dft docs                          # Generate documentation
 dft docs --serve                  # Start web server with documentation
+dft update-gitignore              # Update .gitignore based on project config
 ```
 
 ## 🔌 Supported Components
@@ -332,6 +333,30 @@ variables:
 
 After successful pipeline execution, DFT automatically updates `last_processed_date`.
 
+## ⚙️ State Management
+
+DFT supports configurable state management for different deployment scenarios:
+
+### Development Setup (Default)
+```yaml
+# dft_project.yml
+state:
+  ignore_in_git: true  # State files ignored in git (recommended for dev)
+```
+
+### Production/GitOps Setup
+```yaml
+# dft_project.yml  
+state:
+  ignore_in_git: false  # State files versioned in git (for GitOps)
+```
+
+### Update Git Configuration
+```bash
+# After changing state config, update .gitignore
+dft update-gitignore
+```
+
 ## 📁 Project Structure
 
 ```
@@ -342,8 +367,9 @@ my_analytics_project/
 │   ├── daily_metrics.yml
 │   ├── user_analysis.yml
 │   └── ab_tests.yml
+├── output/                      # Generated output files (ignored in git)
 ├── .dft/
-│   ├── state/                   # Pipeline state
+│   ├── state/                   # Pipeline state (configurable)
 │   └── logs/                    # Execution logs
 └── docs/                        # Generated documentation
 ```
