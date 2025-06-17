@@ -1,0 +1,77 @@
+# Customer Analysis Pipeline  
+pipeline_name: customer_analysis
+tags: [weekly, customers, analysis]
+
+# Run weekly customer analysis
+variables:
+  # Process weekly data
+  start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
+  end_date: "{{ yesterday() }}"
+
+steps:
+  # Get customer data
+  - id: extract_customer_registrations
+    type: source
+    source_type: postgresql  
+    name: main_postgres
+    config:
+      query: |
+        SELECT 
+          customer_id,
+          DATE(created_date) as created_date,
+          region_code,
+          source_channel,
+          customer_tier
+        FROM customers
+        WHERE created_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+        AND status = 'active'
+
+  # Get customer activity data
+  - id: extract_customer_activity
+    type: source
+    source_type: postgresql
+    name: main_postgres  
+    config:
+      query: |
+        SELECT 
+          customer_id,
+          DATE(activity_date) as activity_date,
+          orders_count,
+          total_amount
+        FROM customer_daily_stats
+        WHERE activity_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+        AND customer_id IN (
+          SELECT customer_id FROM customers 
+          WHERE created_date >= '{{ var("start_date") }}' - INTERVAL '30 days'
+        )
+
+  # Validate customer data
+  - id: validate_customer_data  
+    type: processor
+    processor_type: validator
+    depends_on: [extract_customer_registrations]
+    config:
+      required_columns: [customer_id, created_date, region_code]
+      row_count_min: 1
+
+  # Save customer data
+  - id: save_customer_registrations
+    type: endpoint
+    endpoint_type: clickhouse
+    name: analytics_warehouse
+    depends_on: [validate_customer_data]
+    config:
+      table: "customer_registrations"
+      auto_create: true
+      mode: "append"
+
+  # Save activity data  
+  - id: save_customer_activity
+    type: endpoint
+    endpoint_type: clickhouse
+    name: analytics_warehouse
+    depends_on: [extract_customer_activity]
+    config:
+      table: "customer_activity"
+      auto_create: true
+      mode: "append"

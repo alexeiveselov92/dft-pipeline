@@ -1,0 +1,68 @@
+# Data Integration Pipeline Example
+# Demonstrates how to integrate data from multiple sources
+
+pipeline_name: data_integration_pipeline
+tags: [integration, daily]
+
+variables:
+  start_date: "{{ state.get('last_processed_date', days_ago(1)) }}"
+  end_date: "{{ yesterday() }}"
+
+steps:
+  # Extract from primary database
+  - id: extract_primary_data
+    type: source
+    source_type: postgresql
+    config:
+      query: |
+        SELECT 
+          id,
+          customer_id,
+          created_date,
+          status,
+          amount
+        FROM orders
+        WHERE created_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+
+  # Extract from secondary system
+  - id: extract_customer_data
+    type: source
+    source_type: mysql
+    config:
+      query: |
+        SELECT 
+          customer_id,
+          customer_name,
+          customer_tier,
+          registration_date
+        FROM customers
+        WHERE updated_date >= '{{ var("start_date") }}'
+
+  # Validate primary data
+  - id: validate_orders
+    type: processor
+    processor_type: validator
+    depends_on: [extract_primary_data]
+    config:
+      required_columns: [id, customer_id, amount]
+      row_count_min: 1
+      checks:
+        - column: amount
+          min_value: 0
+
+  # Save integrated data
+  - id: save_to_warehouse
+    type: endpoint
+    endpoint_type: clickhouse
+    depends_on: [validate_orders]
+    config:
+      table: "integrated_orders"
+      auto_create: true
+      mode: "append"
+      schema:
+        id: "String"
+        customer_id: "String"
+        created_date: "Date"
+        status: "String"
+        amount: "Float64"
+        processed_at: "DateTime DEFAULT now()"

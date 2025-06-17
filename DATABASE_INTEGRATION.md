@@ -116,34 +116,35 @@ steps:
       mode: "append"
 ```
 
-### A/B Test Example with Incremental Processing
+### Transaction Processing Example with Incremental Processing
 ```yaml
-pipeline_name: ab_test_analysis
+pipeline_name: transaction_processing
 variables:
-  start_date: "{{ state.get('last_processed_date', days_ago(30)) }}"
+  start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
   end_date: "{{ yesterday() }}"
 
 steps:
-  - id: get_experiment_data
+  - id: extract_transactions
     type: source
-    source_type: clickhouse
+    source_type: postgresql
     config:
       query: |
         SELECT 
-          experiment_id,
-          user_id,
-          group_name,
-          event_date,
-          conversion
-        FROM experiments_events 
-        WHERE event_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+          transaction_id,
+          customer_id,
+          transaction_date,
+          amount,
+          status
+        FROM transactions 
+        WHERE transaction_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
+        AND status = 'completed'
         
-  - id: save_results
+  - id: save_processed_data
     type: endpoint
     endpoint_type: clickhouse
-    depends_on: [get_experiment_data]
+    depends_on: [extract_transactions]
     config:
-      table: "ab_test_results"
+      table: "processed_transactions"
       mode: "append"
 ```
 
@@ -182,25 +183,25 @@ GOOGLE_PLAY_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
 
 ## 📊 Usage Examples
 
-### 1. Daily Google Play Data Loading
+### 1. Daily Data Processing
 ```bash
-dft run --select google_play_financial_etl
+dft run --select daily_data_pipeline
 ```
 
-### 2. Scheduled Anomaly Monitoring
+### 2. Scheduled Data Monitoring
 ```bash
 # Via cron every hour
-0 * * * * cd /analytics && dft run --select revenue_anomaly_detection
+0 * * * * cd /analytics && dft run --select data_quality_check
 ```
 
-### 3. A/B Tests with Incremental Updates
+### 3. Incremental Data Processing
 ```bash
-dft run --select ab_test_daily_analysis
+dft run --select incremental_processing
 ```
 
 ### 4. Processing Specific Period
 ```bash
-dft run --select ab_test_daily_analysis --vars start_date=2024-01-01,end_date=2024-01-31
+dft run --select transaction_processing --vars start_date=2024-01-01,end_date=2024-01-31
 ```
 
 ## 🚀 Performance

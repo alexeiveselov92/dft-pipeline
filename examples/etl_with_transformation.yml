@@ -1,0 +1,73 @@
+# ETL Pipeline with Data Transformation Example
+# Shows extract, transform, and load pattern
+
+pipeline_name: etl_with_transformation
+tags: [etl, transformation, hourly]
+
+variables:
+  batch_size: 1000
+  target_date: "{{ yesterday() }}"
+
+steps:
+  # Extract raw data
+  - id: extract_raw_events
+    type: source
+    source_type: postgresql
+    config:
+      query: |
+        SELECT 
+          event_id,
+          user_id,
+          event_type,
+          event_timestamp,
+          properties,
+          session_id
+        FROM raw_events
+        WHERE DATE(event_timestamp) = '{{ var("target_date") }}'
+        ORDER BY event_timestamp
+        LIMIT {{ var("batch_size") }}
+
+  # Validate extracted data
+  - id: validate_raw_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_raw_events]
+    config:
+      required_columns: [event_id, user_id, event_type, event_timestamp]
+      row_count_min: 1
+      checks:
+        - column: event_timestamp
+          not_null: true
+        - column: user_id
+          not_null: true
+
+  # Transform and clean data (placeholder for future transformation processor)
+  # Currently using validator as transformation step
+  - id: transform_events
+    type: processor
+    processor_type: validator
+    depends_on: [validate_raw_data]
+    config:
+      required_columns: [event_id, user_id, event_type]
+      row_count_min: 1
+
+  # Load to analytical warehouse
+  - id: load_to_warehouse
+    type: endpoint
+    endpoint_type: clickhouse
+    depends_on: [transform_events]
+    config:
+      table: "processed_events"
+      auto_create: true
+      mode: "append"
+      engine: "MergeTree()"
+      order_by: "(event_timestamp, user_id)"
+      partition_by: "toYYYYMM(event_timestamp)"
+
+  # Archive processed data
+  - id: archive_data
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [transform_events]
+    config:
+      file_path: "archive/events_{{ var('target_date') }}.csv"
