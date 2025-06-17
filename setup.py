@@ -4,10 +4,10 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="dft",
+    name="dft-pipeline",
     version="0.1.0",
-    author="DFT Team",
-    author_email="team@dft.com",
+    author="Alexei Veselov",
+    author_email="alexei.veselov92@gmail.com",
     description="Data Flow Tools - flexible ETL pipeline framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
