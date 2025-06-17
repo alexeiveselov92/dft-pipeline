@@ -410,7 +410,7 @@ dft deps
 dft run --select +my_pipeline
 
 # Validate without running
-dft test
+dft validate
 ```
 
 ### Advanced Usage
@@ -441,8 +441,8 @@ dft run --select base_data+
 # Show dependency graph
 dft deps
 
-# Test configuration
-dft test
+# Validate configuration
+dft validate
 
 # Run with verbose logging
 dft run --log-level DEBUG

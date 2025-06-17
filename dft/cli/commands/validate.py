@@ -1,12 +1,12 @@
-"""Test command for DFT"""
+"""Validate command for DFT"""
 
 import click
 from pathlib import Path
 from typing import Optional
 
 
-def run_tests(select: Optional[str]) -> None:
-    """Run DFT tests"""
+def run_validation(select: Optional[str]) -> None:
+    """Validate pipeline configurations and dependencies"""
     
     # Check if we're in a DFT project
     if not Path("dft_project.yml").exists():
@@ -24,7 +24,7 @@ def run_tests(select: Optional[str]) -> None:
         pipelines = pipeline_loader.load_all_pipelines()
         
         if not pipelines:
-            click.echo("No pipelines found to test")
+            click.echo("No pipelines found to validate")
             return
         
         errors = []
@@ -46,5 +46,5 @@ def run_tests(select: Optional[str]) -> None:
             click.echo(f"\n✅ All {len(pipelines)} pipeline(s) passed validation")
             
     except Exception as e:
-        click.echo(f"Error running tests: {e}")
+        click.echo(f"Error running validation: {e}")
         exit(1)

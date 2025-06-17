@@ -56,11 +56,11 @@ def run(select: Optional[str], exclude: Optional[str], vars: Optional[str], full
 
 
 @cli.command()
-@click.option("--select", help="Select specific pipelines to test")
-def test(select: Optional[str]) -> None:
-    """Run DFT tests"""
-    from .commands.test import run_tests
-    run_tests(select)
+@click.option("--select", help="Select specific pipelines to validate")
+def validate(select: Optional[str]) -> None:
+    """Validate pipeline configurations and dependencies"""
+    from .commands.validate import run_validation
+    run_validation(select)
 
 
 @cli.command()

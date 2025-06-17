@@ -156,9 +156,9 @@ dft run --select +pipeline_name   # Run upstream dependencies
 dft run --select pipeline_name+   # Run downstream dependencies  
 dft run --select +pipeline_name+  # Run all related pipelines
 
-# Testing and validation
-dft test                          # Validate all pipeline configurations
-dft test --select my_pipeline     # Validate specific pipeline
+# Pipeline validation
+dft validate                      # Validate all pipeline configurations
+dft validate --select my_pipeline # Validate specific pipeline
 
 # Dependency analysis
 dft deps                          # Show all dependencies
