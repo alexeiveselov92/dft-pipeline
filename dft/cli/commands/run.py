@@ -29,6 +29,22 @@ def run_pipelines(
         click.echo("Error: Not in a DFT project directory. Run 'dft init' first.")
         return
     
+    # Setup logging from project configuration
+    try:
+        from ...core.config import ProjectConfig
+        from ...utils.logging import setup_logging
+        
+        project_config = ProjectConfig()
+        logging_config = project_config.logging_config
+        
+        if logging_config:
+            setup_logging(
+                level=logging_config.get('level', 'INFO'),
+                log_dir=logging_config.get('dir', '.dft/logs')
+            )
+    except Exception as e:
+        click.echo(f"Warning: Could not setup logging from project config: {e}")
+    
     try:
         from ...core.runner import PipelineRunner
         

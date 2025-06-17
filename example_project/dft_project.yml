@@ -28,6 +28,11 @@ connections:
     user: "{{ env_var('CH_USER') }}"
     password: "{{ env_var('CH_PASSWORD') }}"
 
+# Logging configuration
+logging:
+  level: INFO
+  dir: .dft/logs
+
 # Global variables
 variables:
   # Default date ranges

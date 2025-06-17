@@ -20,6 +20,7 @@ def init_project(project_name: str, pipelines_dir: str) -> None:
         (project_path / "tests").mkdir()
         (project_path / "output").mkdir()  # Create output directory
         (project_path / ".dft").mkdir()
+        (project_path / ".dft" / "logs").mkdir()  # Create logs directory
         
         # Create dft_project.yml
         project_config = f"""# DFT Project Configuration

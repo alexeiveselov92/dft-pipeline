@@ -35,6 +35,11 @@ project_name: my_analytics
 state:
   ignore_in_git: true  # Recommended for development
 
+# Logging configuration
+logging:
+  level: INFO    # Log level: DEBUG, INFO, WARNING, ERROR
+  dir: .dft/logs # Directory for log files
+
 # Database and service connections (can be used as sources and endpoints)
 connections:
   my_postgres:
@@ -394,6 +399,39 @@ variables:
   # Subsequent runs: processes from last_processed_date
   start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
   end_date: "{{ yesterday() }}"
+```
+
+## 📝 Logging Configuration
+
+DFT automatically logs pipeline execution details for monitoring and debugging.
+
+### Configuration
+```yaml
+# dft_project.yml
+logging:
+  level: INFO          # DEBUG, INFO, WARNING, ERROR
+  dir: .dft/logs       # Log files directory
+```
+
+### Log Files
+- **Location**: `.dft/logs/dft_YYYYMMDD.log`
+- **Format**: Timestamped entries with step details
+- **Content**: Pipeline execution, data metrics, errors
+- **Rotation**: Daily log files
+
+### Log Levels
+- **DEBUG**: Detailed execution information
+- **INFO**: Pipeline steps and data metrics (default)
+- **WARNING**: Non-critical issues
+- **ERROR**: Critical failures
+
+### Example Log Output
+```
+2024-01-15 10:30:15 [INFO] Starting pipeline: daily_metrics
+2024-01-15 10:30:16 [INFO] Step extract_events: Processing 1,234 rows
+2024-01-15 10:30:18 [INFO] Step validate_data: 1,234 rows passed validation
+2024-01-15 10:30:20 [INFO] Step save_to_warehouse: 1,234 rows saved to daily_events
+2024-01-15 10:30:20 [INFO] Pipeline daily_metrics completed successfully
 ```
 
 ## 📁 Project Structure
