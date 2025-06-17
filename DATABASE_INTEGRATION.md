@@ -87,6 +87,7 @@ steps:
   - id: get_daily_data
     type: source
     source_type: clickhouse
+    connection: clickhouse_prod
     config:
       query: |
         SELECT 
@@ -109,11 +110,20 @@ steps:
   - id: save_results
     type: endpoint
     endpoint_type: clickhouse
+    connection: clickhouse_prod
     depends_on: [process_data]
     config:
       table: "daily_analytics"
       auto_create: true
       mode: "append"
+      schema:
+        user_id: "String"
+        event_date: "Date"
+        revenue: "Float64"
+        country: "String"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(event_date, user_id)"
 ```
 
 ### Transaction Processing Example with Incremental Processing
@@ -127,6 +137,7 @@ steps:
   - id: extract_transactions
     type: source
     source_type: postgresql
+    connection: postgres_prod
     config:
       query: |
         SELECT 
@@ -142,10 +153,21 @@ steps:
   - id: save_processed_data
     type: endpoint
     endpoint_type: clickhouse
+    connection: clickhouse_prod
     depends_on: [extract_transactions]
     config:
       table: "processed_transactions"
+      auto_create: true
       mode: "append"
+      schema:
+        transaction_id: "String"
+        customer_id: "String"
+        transaction_date: "Date"
+        amount: "Float64"
+        status: "String"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(transaction_date, customer_id)"
 ```
 
 ### How Incremental Processing Works
@@ -162,7 +184,7 @@ steps:
 ### Environment Variables (Recommended)
 ```yaml
 # dft_project.yml
-sources:
+connections:
   clickhouse_prod:
     type: clickhouse
     host: "{{ env_var('CH_HOST') }}"

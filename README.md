@@ -113,6 +113,14 @@ steps:
       table: "daily_events"
       auto_create: true
       mode: "append"
+      schema:
+        user_id: "String"
+        event_date: "Date"
+        event_type: "String"
+        revenue: "Float64"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(event_date, user_id)"
 ```
 
 ### 5. Run Pipeline
@@ -288,6 +296,12 @@ steps:
     depends_on: [validate_data]
     config:
       table: "processed_table"
+      auto_create: true
+      mode: "append"
+      schema:
+        id: "INTEGER"
+        name: "TEXT"
+        processed_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 ```
 
 ### Dependency Validation
