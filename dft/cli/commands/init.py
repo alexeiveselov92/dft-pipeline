@@ -111,6 +111,7 @@ API_KEY=your_api_key_here
         
         # Create gitignore - will be updated based on state config
         gitignore = """.dft/logs/
+.dft/docs/
 .env
 output/
 __pycache__/
