@@ -55,6 +55,16 @@ class ProjectConfig:
         return self.config.get("connections", {})
     
     @property
+    def state_config(self) -> Dict[str, Any]:
+        """Get state management configuration"""
+        return self.config.get("state", {"ignore_in_git": True})
+    
+    @property
+    def should_ignore_state_in_git(self) -> bool:
+        """Whether state files should be ignored in git"""
+        return self.state_config.get("ignore_in_git", True)
+    
+    @property
     def logging_config(self) -> Dict[str, Any]:
         return self.config.get("logging", {})
 

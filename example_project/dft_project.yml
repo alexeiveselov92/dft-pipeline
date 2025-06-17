@@ -1,6 +1,12 @@
 # DFT Project Configuration
 project_name: my_analytics
 
+# State management configuration
+state:
+  # Whether to ignore state files in git (recommended for development)
+  # Set to false for production/GitOps workflows where state should be versioned
+  ignore_in_git: true
+
 # Database and service connections
 # Each connection can be used as both source and endpoint
 connections:

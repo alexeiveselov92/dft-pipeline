@@ -18,6 +18,7 @@ def init_project(project_name: str, pipelines_dir: str) -> None:
         project_path.mkdir()
         (project_path / pipelines_dir).mkdir()
         (project_path / "tests").mkdir()
+        (project_path / "output").mkdir()  # Create output directory
         (project_path / ".dft").mkdir()
         
         # Create dft_project.yml
@@ -32,8 +33,14 @@ pipelines_dir: {pipelines_dir}
 vars:
   target: dev
 
-# Source connections (use environment variables for secrets)
-sources:
+# State management configuration
+state:
+  # Whether to ignore state files in git (recommended for development)
+  # Set to false for production/GitOps workflows where state should be versioned
+  ignore_in_git: true
+
+# Database and service connections (use environment variables for secrets)
+connections:
   postgres_default:
     type: postgresql
     host: "{{{{ env_var('DB_HOST', 'localhost') }}}}"
@@ -101,10 +108,10 @@ API_KEY=your_api_key_here
         # Create sample data directory
         (project_path / "data").mkdir()
         
-        # Create gitignore
-        gitignore = """.dft/state/
-.dft/logs/
+        # Create gitignore - will be updated based on state config
+        gitignore = """.dft/logs/
 .env
+output/
 __pycache__/
 *.pyc
 *.pyo
@@ -115,7 +122,25 @@ venv/
 .venv/
 """
         
+        # Add state to gitignore based on config (default is ignore_in_git: true)
+        gitignore += ".dft/state/\n"
+        
         (project_path / ".gitignore").write_text(gitignore)
+        
+        # Update gitignore based on state configuration
+        import os
+        old_cwd = os.getcwd()
+        try:
+            os.chdir(project_path)
+            from .gitignore import update_gitignore_for_state
+            from dft.core.config import ProjectConfig
+            
+            project_config = ProjectConfig("dft_project.yml")
+            update_gitignore_for_state(project_config)
+        except Exception as e:
+            click.echo(f"Warning: Could not update gitignore for state config: {e}")
+        finally:
+            os.chdir(old_cwd)
         
         click.echo(f"✅ DFT project '{project_name}' initialized successfully!")
         click.echo(f"📁 Created directory structure:")
@@ -125,6 +150,7 @@ venv/
         click.echo(f"   │   └── example_pipeline.yml")
         click.echo(f"   ├── tests/")
         click.echo(f"   ├── data/")
+        click.echo(f"   ├── output/")
         click.echo(f"   ├── .dft/")
         click.echo(f"   ├── .env.example")
         click.echo(f"   └── .gitignore")

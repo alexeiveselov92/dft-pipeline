@@ -78,5 +78,13 @@ def docs(serve: bool) -> None:
     generate_docs(serve)
 
 
+@cli.command("update-gitignore")
+@click.option('--config', default='dft_project.yml', help='Path to project config file')
+def update_gitignore_cmd(config: str) -> None:
+    """Update .gitignore based on project configuration"""
+    from .commands.gitignore import update_gitignore
+    update_gitignore.callback(config)
+
+
 if __name__ == "__main__":
     cli()
