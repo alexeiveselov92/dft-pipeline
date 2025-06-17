@@ -46,15 +46,6 @@ connections:
     database: "{{ env_var('CH_DATABASE') }}"
     user: "{{ env_var('CH_USER') }}"
     password: "{{ env_var('CH_PASSWORD') }}"
-    
-  # Multiple environments example  
-  clickhouse_staging:
-    type: clickhouse
-    host: "{{ env_var('CH_STAGE_HOST') }}"
-    port: 9000
-    database: "{{ env_var('CH_STAGE_DATABASE') }}"
-    user: "{{ env_var('CH_STAGE_USER') }}"
-    password: "{{ env_var('CH_STAGE_PASSWORD') }}"
 
 variables:
   default_start_date: "2024-01-01"

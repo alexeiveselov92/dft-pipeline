@@ -101,50 +101,16 @@ class MySQLEndpoint(DataEndpoint):
             return False
     
     def _create_table(self, cursor, table_name: str, arrow_table: pa.Table) -> None:
-        """Create table from Arrow schema"""
+        """Create table from explicit schema definition"""
         
-        # Get user-defined schema if provided
-        user_schema = self.get_config("schema", {})
+        # Require explicit schema definition
+        user_schema = self.get_config("schema")
+        if not user_schema:
+            raise ValueError(f"Schema is required for MySQL endpoint. Please define schema for table {table_name}")
         
-        # Map Arrow types to MySQL types
-        type_mapping = {
-            pa.string(): "TEXT",
-            pa.int8(): "TINYINT",
-            pa.int16(): "SMALLINT", 
-            pa.int32(): "INT",
-            pa.int64(): "BIGINT",
-            pa.uint8(): "TINYINT UNSIGNED",
-            pa.uint16(): "SMALLINT UNSIGNED",
-            pa.uint32(): "INT UNSIGNED", 
-            pa.uint64(): "BIGINT UNSIGNED",
-            pa.float32(): "FLOAT",
-            pa.float64(): "DOUBLE",
-            pa.bool_(): "BOOLEAN",
-            pa.date32(): "DATE",
-            pa.date64(): "DATE",
-            pa.timestamp('s'): "DATETIME",
-            pa.timestamp('ms'): "DATETIME",
-            pa.timestamp('us'): "DATETIME",
-            pa.timestamp('ns'): "DATETIME",
-        }
-        
-        # Build column definitions
+        # Build column definitions from user-defined schema only
         columns = []
-        for field in arrow_table.schema:
-            column_name = field.name
-            
-            # Use user-defined type if provided
-            if column_name in user_schema:
-                column_type = user_schema[column_name]
-            else:
-                # Auto-detect type
-                arrow_type = field.type
-                column_type = type_mapping.get(arrow_type, "TEXT")
-                
-                # Handle nullable fields
-                if not field.nullable:
-                    column_type += " NOT NULL"
-            
+        for column_name, column_type in user_schema.items():
             columns.append(f"`{column_name}` {column_type}")
         
         # Create table SQL

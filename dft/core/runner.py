@@ -177,6 +177,13 @@ class PipelineRunner:
                 step.config, variables, step_results
             )
             
+            # Add connection information to rendered config
+            # Support both 'connection' (new) and 'name' (legacy) fields
+            if step.connection:
+                rendered_config["connection"] = step.connection
+            elif step.name:
+                rendered_config["name"] = step.name
+            
             # Execute step based on type
             if step.type == "source":
                 component = self.factory.create_source(step.source_type or "", rendered_config)

@@ -18,7 +18,8 @@ class PipelineStep:
     source_type: Optional[str] = None
     processor_type: Optional[str] = None
     endpoint_type: Optional[str] = None
-    name: Optional[str] = None  # Named connection from project config
+    name: Optional[str] = None  # Named connection from project config (legacy)
+    connection: Optional[str] = None  # Named connection from project config (preferred)
     
     # Runtime properties
     status: str = "pending"  # pending, running, success, failed

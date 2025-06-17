@@ -112,7 +112,8 @@ class PipelineLoader:
                 source_type=step_config.get("source_type"),
                 processor_type=step_config.get("processor_type"),
                 endpoint_type=step_config.get("endpoint_type"),
-                name=step_config.get("name")
+                name=step_config.get("name"),
+                connection=step_config.get("connection")
             )
             steps.append(step)
         

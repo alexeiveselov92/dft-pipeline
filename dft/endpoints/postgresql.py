@@ -104,46 +104,16 @@ class PostgreSQLEndpoint(DataEndpoint):
             return False
     
     def _create_table(self, cursor, table_name: str, arrow_table: pa.Table) -> None:
-        """Create table from Arrow schema"""
+        """Create table from explicit schema definition"""
         
-        # Get user-defined schema if provided
-        user_schema = self.get_config("schema", {})
+        # Require explicit schema definition
+        user_schema = self.get_config("schema")
+        if not user_schema:
+            raise ValueError(f"Schema is required for PostgreSQL endpoint. Please define schema for table {table_name}")
         
-        # Map Arrow types to PostgreSQL types
-        type_mapping = {
-            pa.string(): "TEXT",
-            pa.int8(): "SMALLINT",
-            pa.int16(): "SMALLINT", 
-            pa.int32(): "INTEGER",
-            pa.int64(): "BIGINT",
-            pa.uint8(): "SMALLINT",
-            pa.uint16(): "INTEGER",
-            pa.uint32(): "BIGINT", 
-            pa.uint64(): "BIGINT",
-            pa.float32(): "REAL",
-            pa.float64(): "DOUBLE PRECISION",
-            pa.bool_(): "BOOLEAN",
-            pa.date32(): "DATE",
-            pa.date64(): "DATE",
-            pa.timestamp('s'): "TIMESTAMP",
-            pa.timestamp('ms'): "TIMESTAMP",
-            pa.timestamp('us'): "TIMESTAMP",
-            pa.timestamp('ns'): "TIMESTAMP",
-        }
-        
-        # Build column definitions
+        # Build column definitions from user-defined schema only
         columns = []
-        for field in arrow_table.schema:
-            column_name = field.name
-            
-            # Use user-defined type if provided
-            if column_name in user_schema:
-                column_type = user_schema[column_name]
-            else:
-                # Auto-detect type
-                arrow_type = field.type
-                column_type = type_mapping.get(arrow_type, "TEXT")
-            
+        for column_name, column_type in user_schema.items():
             columns.append(f'"{column_name}" {column_type}')
         
         # Create table SQL

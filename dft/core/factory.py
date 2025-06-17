@@ -54,7 +54,9 @@ class ComponentFactory:
         source_class = self._import_class(class_path)
         
         # Merge with project source config if available
-        source_config = self._get_source_config(config.get("name", ""), config)
+        # Support both 'name' (legacy) and 'connection' (new) parameters
+        connection_name = config.get("connection") or config.get("name", "")
+        source_config = self._get_source_config(connection_name, config)
         
         return source_class(source_config)
     
@@ -77,7 +79,9 @@ class ComponentFactory:
         endpoint_class = self._import_class(class_path)
         
         # Merge with project source config if available (for database endpoints)
-        endpoint_config = self._get_source_config(config.get("name", ""), config)
+        # Support both 'name' (legacy) and 'connection' (new) parameters
+        connection_name = config.get("connection") or config.get("name", "")
+        endpoint_config = self._get_source_config(connection_name, config)
         
         return endpoint_class(endpoint_config)
     

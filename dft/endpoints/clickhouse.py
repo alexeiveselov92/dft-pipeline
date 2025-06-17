@@ -93,50 +93,16 @@ class ClickHouseEndpoint(DataEndpoint):
             return False
 
     def _create_table(self, client, table_name: str, arrow_table: pa.Table) -> None:
-        """Create table from Arrow schema"""
+        """Create table from explicit schema definition"""
 
-        # Get user-defined schema if provided
-        user_schema = self.get_config("schema", {})
+        # Require explicit schema definition
+        user_schema = self.get_config("schema")
+        if not user_schema:
+            raise ValueError(f"Schema is required for ClickHouse endpoint. Please define schema for table {table_name}")
 
-        # Map Arrow types to ClickHouse types
-        type_mapping = {
-            pa.string(): "String",
-            pa.int8(): "Int8",
-            pa.int16(): "Int16",
-            pa.int32(): "Int32",
-            pa.int64(): "Int64",
-            pa.uint8(): "UInt8",
-            pa.uint16(): "UInt16",
-            pa.uint32(): "UInt32",
-            pa.uint64(): "UInt64",
-            pa.float32(): "Float32",
-            pa.float64(): "Float64",
-            pa.bool_(): "UInt8",
-            pa.date32(): "Date",
-            pa.date64(): "Date",
-            pa.timestamp("s"): "DateTime",
-            pa.timestamp("ms"): "DateTime",
-            pa.timestamp("us"): "DateTime",
-            pa.timestamp("ns"): "DateTime",
-        }
-
-        # Build column definitions
+        # Build column definitions from user-defined schema only
         columns = []
-        for field in arrow_table.schema:
-            column_name = field.name
-
-            # Use user-defined type if provided
-            if column_name in user_schema:
-                column_type = user_schema[column_name]
-            else:
-                # Auto-detect type
-                arrow_type = field.type
-                column_type = type_mapping.get(arrow_type, "String")
-
-                # Handle nullable fields
-                if field.nullable:
-                    column_type = f"Nullable({column_type})"
-
+        for column_name, column_type in user_schema.items():
             columns.append(f"{column_name} {column_type}")
 
         # Create table SQL

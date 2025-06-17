@@ -13,7 +13,7 @@ steps:
   - id: extract_customer_registrations
     type: source
     source_type: postgresql  
-    name: main_postgres
+    connection: main_postgres
     config:
       query: |
         SELECT 
@@ -30,7 +30,7 @@ steps:
   - id: extract_customer_activity
     type: source
     source_type: postgresql
-    name: main_postgres  
+    connection: main_postgres  
     config:
       query: |
         SELECT 
@@ -58,20 +58,37 @@ steps:
   - id: save_customer_registrations
     type: endpoint
     endpoint_type: clickhouse
-    name: analytics_warehouse
+    connection: analytics_warehouse
     depends_on: [validate_customer_data]
     config:
       table: "customer_registrations"
       auto_create: true
       mode: "append"
+      schema:
+        customer_id: "String"
+        created_date: "Date"
+        region_code: "String"
+        source_channel: "String"
+        customer_tier: "String"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(created_date, region_code)"
 
   # Save activity data  
   - id: save_customer_activity
     type: endpoint
     endpoint_type: clickhouse
-    name: analytics_warehouse
+    connection: analytics_warehouse
     depends_on: [extract_customer_activity]
     config:
       table: "customer_activity"
       auto_create: true
       mode: "append"
+      schema:
+        customer_id: "String"
+        activity_date: "Date"
+        orders_count: "UInt32"
+        total_amount: "Float64"
+        processed_at: "DateTime DEFAULT now()"
+      engine: "MergeTree()"
+      order_by: "(activity_date, customer_id)"
