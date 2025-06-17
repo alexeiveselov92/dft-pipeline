@@ -441,6 +441,6 @@ isort dft/
 When encountering issues:
 
 1. Check logs in `.dft/logs/`
-2. Run `dft test` to verify configuration
+2. Run `dft validate` to verify configuration
 3. Ensure all environment variables are set
 4. Create an issue in the project repository
