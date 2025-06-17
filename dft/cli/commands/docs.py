@@ -27,7 +27,7 @@ def generate_docs(serve: bool) -> None:
         html_content = generate_html_docs(project_config, pipelines)
         
         docs_file = docs_dir / "index.html"
-        docs_file.write_text(html_content)
+        docs_file.write_text(html_content, encoding='utf-8')
         
         click.echo(f"📚 Documentation generated: {docs_file}")
         
@@ -63,6 +63,7 @@ def generate_html_docs(project_config, pipelines) -> str:
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>{project_config.project_name} - DFT Documentation</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 40px; }}
@@ -92,10 +93,20 @@ def generate_html_docs(project_config, pipelines) -> str:
         
         for step in pipeline.steps:
             depends = f" (depends on: {', '.join(step.depends_on)})" if step.depends_on else ""
+            
+            # Get the specific type
+            step_type = ""
+            if step.source_type:
+                step_type = f"<br>Source: {step.source_type}"
+            elif step.processor_type:
+                step_type = f"<br>Processor: {step.processor_type}"
+            elif step.endpoint_type:
+                step_type = f"<br>Endpoint: {step.endpoint_type}"
+            
             html += f"""
         <div class="step">
             <strong>{step.id}</strong> - {step.type}{depends}
-            {f'<br>Type: {step.config.get("source_type", step.config.get("processor_type", step.config.get("endpoint_type", "")))}' if step.config else ''}
+            {step_type}
         </div>
 """
         
