@@ -337,43 +337,43 @@ def generate_html_docs(project_config, pipelines) -> str:
         // Pipeline data for graph filtering
         const pipelinesData = """ + generate_pipeline_json(pipelines) + """;
         
-        function showTab(tabName) {{
+        function showTab(tabName) {
             // Hide all tab contents
-            document.querySelectorAll('.tab-content').forEach(content => {{
+            document.querySelectorAll('.tab-content').forEach(content => {
                 content.classList.remove('active');
-            }});
+            });
             
             // Remove active class from all tabs
-            document.querySelectorAll('.tab').forEach(tab => {{
+            document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
-            }});
+            });
             
             // Show selected tab content
             document.getElementById(tabName).classList.add('active');
             
             // Add active class to clicked tab
             event.target.classList.add('active');
-        }}
+        }
         
-        function updateGraph() {{
+        function updateGraph() {
             const selectedPipeline = document.getElementById('pipeline-selector').value;
             const graphContent = document.getElementById('graph-content');
             
-            if (selectedPipeline === 'all') {{
+            if (selectedPipeline === 'all') {
                 // Show all pipelines
                 generateFullGraph();
-            }} else {{
+            } else {
                 // Show focused view
                 generateFocusedGraph(selectedPipeline);
-            }}
-        }}
+            }
+        }
         
-        function generateFullGraph() {{
+        function generateFullGraph() {
             const graphContent = document.getElementById('graph-content');
             graphContent.innerHTML = `""" + graph_data.replace('`', '\\`') + """`;
-        }}
+        }
         
-        function generateFocusedGraph(pipelineName) {{
+        function generateFocusedGraph(pipelineName) {
             const pipeline = pipelinesData.find(p => p.name === pipelineName);
             if (!pipeline) return;
             
@@ -381,58 +381,58 @@ def generate_html_docs(project_config, pipelines) -> str:
             const relatedPipelines = new Set([pipelineName]);
             
             // Add upstream dependencies
-            if (pipeline.depends_on) {{
+            if (pipeline.depends_on) {
                 pipeline.depends_on.forEach(dep => relatedPipelines.add(dep));
-            }}
+            }
             
             // Add downstream dependencies
-            pipelinesData.forEach(p => {{
-                if (p.depends_on && p.depends_on.includes(pipelineName)) {{
+            pipelinesData.forEach(p => {
+                if (p.depends_on && p.depends_on.includes(pipelineName)) {
                     relatedPipelines.add(p.name);
-                }}
-            }});
+                }
+            });
             
             // Generate focused graph
             let focusedGraph = '';
-            const positions = {{}};
+            const positions = {};
             const relatedList = Array.from(relatedPipelines);
             
             // Simple vertical layout for focused view
-            relatedList.forEach((name, index) => {{
+            relatedList.forEach((name, index) => {
                 const x = 400; // Center horizontally
                 const y = 100 + index * 100;
-                positions[name] = {{x, y}};
-            }});
+                positions[name] = {x, y};
+            });
             
             // Draw edges
-            relatedList.forEach(name => {{
+            relatedList.forEach(name => {
                 const p = pipelinesData.find(p => p.name === name);
-                if (p && p.depends_on) {{
-                    p.depends_on.forEach(dep => {{
-                        if (positions[dep] && positions[name]) {{
+                if (p && p.depends_on) {
+                    p.depends_on.forEach(dep => {
+                        if (positions[dep] && positions[name]) {
                             const x1 = positions[dep].x;
                             const y1 = positions[dep].y + 25;
                             const x2 = positions[name].x;
                             const y2 = positions[name].y - 25;
-                            focusedGraph += `<line class="graph-edge" x1="${{x1}}" y1="${{y1}}" x2="${{x2}}" y2="${{y2}}" />`;
-                        }}
-                    }});
-                }}
-            }});
+                            focusedGraph += `<line class="graph-edge" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`;
+                        }
+                    });
+                }
+            });
             
             // Draw nodes
-            relatedList.forEach(name => {{
+            relatedList.forEach(name => {
                 const pos = positions[name];
                 const isSelected = name === pipelineName;
                 const nodeColor = isSelected ? '#e53e3e' : '#667eea';
                 const strokeColor = isSelected ? '#c53030' : '#4c63d2';
                 
-                focusedGraph += `<rect class="graph-node" fill="${{nodeColor}}" stroke="${{strokeColor}}" x="${{pos.x-80}}" y="${{pos.y-15}}" width="160" height="30" rx="15" />`;
-                focusedGraph += `<text class="graph-text" x="${{pos.x}}" y="${{pos.y}}">${{name.length > 20 ? name.substring(0, 20) + '...' : name}}</text>`;
-            }});
+                focusedGraph += `<rect class="graph-node" fill="${nodeColor}" stroke="${strokeColor}" x="${pos.x-80}" y="${pos.y-15}" width="160" height="30" rx="15" />`;
+                focusedGraph += `<text class="graph-text" x="${pos.x}" y="${pos.y}">${name.length > 20 ? name.substring(0, 20) + '...' : name}</text>`;
+            });
             
             document.getElementById('graph-content').innerHTML = focusedGraph;
-        }}
+        }
     </script>
 </body>
 </html>
