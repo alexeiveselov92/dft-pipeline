@@ -272,16 +272,37 @@ def generate_html_docs(project_config, pipelines) -> str:
         <div id="graph" class="tab-content">
             <div class="graph-container">
                 <h2>🔗 Pipeline Dependencies</h2>
-                <p>Visual representation of pipeline dependencies</p>
-                <svg width="800" height="600" viewBox="0 0 800 600">
-                    <defs>
-                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
-                         refX="9" refY="3.5" orient="auto">
-                            <polygon points="0 0, 10 3.5, 0 7" fill="#a0aec0" />
-                        </marker>
-                    </defs>
-                    """ + graph_data + """
-                </svg>
+                <p>Visual representation of pipeline dependencies and data flow</p>
+                
+                <div style="margin: 1rem 0; text-align: left;">
+                    <label for="pipeline-selector" style="font-weight: 500; margin-right: 1rem;">Focus on pipeline:</label>
+                    <select id="pipeline-selector" onchange="updateGraph()" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #e2e8f0;">
+                        <option value="all">All Pipelines</option>""" + ''.join([f'<option value="{p.name}">{p.name}</option>' for p in pipelines]) + """
+                    </select>
+                </div>
+                
+                <div id="graph-svg-container">
+                    <svg width="800" height="500" viewBox="0 0 800 500" id="dependency-graph">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                             refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#a0aec0" />
+                            </marker>
+                        </defs>
+                        <g id="graph-content">
+                            """ + graph_data + """
+                        </g>
+                    </svg>
+                </div>
+                
+                <div style="margin-top: 1rem; text-align: left; font-size: 0.9rem; color: #718096;">
+                    <h4>Legend:</h4>
+                    <div style="display: flex; gap: 2rem; flex-wrap: wrap;">
+                        <div><span style="display: inline-block; width: 12px; height: 12px; background: #667eea; border-radius: 2px; margin-right: 0.5rem;"></span>Pipeline</div>
+                        <div><span style="display: inline-block; width: 20px; height: 2px; background: #a0aec0; margin-right: 0.5rem; position: relative; top: 5px;"></span>Dependency</div>
+                        <div><span style="color: #e53e3e;">●</span> Selected pipeline and dependencies</div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -313,6 +334,9 @@ def generate_html_docs(project_config, pipelines) -> str:
     </div>
     
     <script>
+        // Pipeline data for graph filtering
+        const pipelinesData = """ + generate_pipeline_json(pipelines) + """;
+        
         function showTab(tabName) {{
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(content => {{
@@ -329,6 +353,85 @@ def generate_html_docs(project_config, pipelines) -> str:
             
             // Add active class to clicked tab
             event.target.classList.add('active');
+        }}
+        
+        function updateGraph() {{
+            const selectedPipeline = document.getElementById('pipeline-selector').value;
+            const graphContent = document.getElementById('graph-content');
+            
+            if (selectedPipeline === 'all') {{
+                // Show all pipelines
+                generateFullGraph();
+            }} else {{
+                // Show focused view
+                generateFocusedGraph(selectedPipeline);
+            }}
+        }}
+        
+        function generateFullGraph() {{
+            const graphContent = document.getElementById('graph-content');
+            graphContent.innerHTML = `""" + graph_data.replace('`', '\\`') + """`;
+        }}
+        
+        function generateFocusedGraph(pipelineName) {{
+            const pipeline = pipelinesData.find(p => p.name === pipelineName);
+            if (!pipeline) return;
+            
+            // Find all related pipelines (upstream and downstream)
+            const relatedPipelines = new Set([pipelineName]);
+            
+            // Add upstream dependencies
+            if (pipeline.depends_on) {{
+                pipeline.depends_on.forEach(dep => relatedPipelines.add(dep));
+            }}
+            
+            // Add downstream dependencies
+            pipelinesData.forEach(p => {{
+                if (p.depends_on && p.depends_on.includes(pipelineName)) {{
+                    relatedPipelines.add(p.name);
+                }}
+            }});
+            
+            // Generate focused graph
+            let focusedGraph = '';
+            const positions = {{}};
+            const relatedList = Array.from(relatedPipelines);
+            
+            // Simple vertical layout for focused view
+            relatedList.forEach((name, index) => {{
+                const x = 400; // Center horizontally
+                const y = 100 + index * 100;
+                positions[name] = {{x, y}};
+            }});
+            
+            // Draw edges
+            relatedList.forEach(name => {{
+                const p = pipelinesData.find(p => p.name === name);
+                if (p && p.depends_on) {{
+                    p.depends_on.forEach(dep => {{
+                        if (positions[dep] && positions[name]) {{
+                            const x1 = positions[dep].x;
+                            const y1 = positions[dep].y + 25;
+                            const x2 = positions[name].x;
+                            const y2 = positions[name].y - 25;
+                            focusedGraph += `<line class="graph-edge" x1="${{x1}}" y1="${{y1}}" x2="${{x2}}" y2="${{y2}}" />`;
+                        }}
+                    }});
+                }}
+            }});
+            
+            // Draw nodes
+            relatedList.forEach(name => {{
+                const pos = positions[name];
+                const isSelected = name === pipelineName;
+                const nodeColor = isSelected ? '#e53e3e' : '#667eea';
+                const strokeColor = isSelected ? '#c53030' : '#4c63d2';
+                
+                focusedGraph += `<rect class="graph-node" fill="${{nodeColor}}" stroke="${{strokeColor}}" x="${{pos.x-80}}" y="${{pos.y-15}}" width="160" height="30" rx="15" />`;
+                focusedGraph += `<text class="graph-text" x="${{pos.x}}" y="${{pos.y}}">${{name.length > 20 ? name.substring(0, 20) + '...' : name}}</text>`;
+            }});
+            
+            document.getElementById('graph-content').innerHTML = focusedGraph;
         }}
     </script>
 </body>
@@ -384,3 +487,18 @@ def generate_dependency_graph(pipelines) -> str:
         graph_svg += f'<text class="graph-text" x="{x}" y="{y}">{display_name}</text>'
     
     return graph_svg
+
+
+def generate_pipeline_json(pipelines) -> str:
+    """Generate JSON data for JavaScript"""
+    import json
+    
+    pipeline_data = []
+    for pipeline in pipelines:
+        pipeline_data.append({
+            'name': pipeline.name,
+            'depends_on': pipeline.depends_on if pipeline.depends_on else [],
+            'tags': pipeline.tags if pipeline.tags else []
+        })
+    
+    return json.dumps(pipeline_data)
