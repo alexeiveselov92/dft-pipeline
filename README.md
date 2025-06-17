@@ -29,6 +29,12 @@ Create `dft_project.yml` file:
 
 ```yaml
 # dft_project.yml
+project_name: my_analytics
+
+# State management configuration
+state:
+  ignore_in_git: true  # Recommended for development
+
 # Database and service connections (can be used as sources and endpoints)
 connections:
   my_postgres:
@@ -335,26 +341,59 @@ After successful pipeline execution, DFT automatically updates `last_processed_d
 
 ## ⚙️ State Management
 
+DFT tracks pipeline execution state to enable incremental processing. State files store information like `last_processed_date` to avoid reprocessing the same data.
+
+### What is State?
+State files contain metadata about pipeline execution:
+- `last_processed_date` - for incremental data processing
+- Execution history and status
+- Custom state variables
+
+State is stored in `.dft/state/` directory as JSON files.
+
+### Configuration Options
+
 DFT supports configurable state management for different deployment scenarios:
 
-### Development Setup (Default)
+#### Development Setup (Default)
 ```yaml
 # dft_project.yml
 state:
   ignore_in_git: true  # State files ignored in git (recommended for dev)
 ```
 
-### Production/GitOps Setup
+**Use case**: Local development, each developer has their own state
+- ✅ No state conflicts between developers
+- ✅ Clean git history without state changes
+- ❌ State not preserved on fresh git clone
+
+#### Production/GitOps Setup
 ```yaml
 # dft_project.yml  
 state:
   ignore_in_git: false  # State files versioned in git (for GitOps)
 ```
 
+**Use case**: Production deployments, GitOps workflows
+- ✅ State preserved across deployments
+- ✅ Consistent incremental processing
+- ✅ State history tracked in git
+- ❌ Potential merge conflicts on state files
+
 ### Update Git Configuration
 ```bash
 # After changing state config, update .gitignore
 dft update-gitignore
+```
+
+### State in Action
+```yaml
+# Pipeline uses state for incremental processing
+variables:
+  # First run: processes last 7 days
+  # Subsequent runs: processes from last_processed_date
+  start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
+  end_date: "{{ yesterday() }}"
 ```
 
 ## 📁 Project Structure
