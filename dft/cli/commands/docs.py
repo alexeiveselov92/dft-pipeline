@@ -60,6 +60,37 @@ def generate_docs(serve: bool) -> None:
 def generate_html_docs(project_config, pipelines) -> str:
     """Generate HTML documentation"""
     
+    # Calculate statistics for overview
+    total_pipelines = len(pipelines)
+    total_steps = sum(len(p.steps) for p in pipelines)
+    independent_pipelines = len([p for p in pipelines if not p.depends_on])
+    dependent_pipelines = len([p for p in pipelines if p.depends_on])
+    total_sources = sum(len([s for s in p.steps if s.type == 'source']) for p in pipelines)
+    total_processors = sum(len([s for s in p.steps if s.type == 'processor']) for p in pipelines)
+    total_endpoints = sum(len([s for s in p.steps if s.type == 'endpoint']) for p in pipelines)
+    all_tags = sorted(set(tag for p in pipelines for tag in p.tags))
+    common_tags = ', '.join(all_tags)
+    
+    # Create overview content separately
+    overview_content = f"""
+                    <p>This DFT project contains <strong>{total_pipelines} pipelines</strong> with a total of <strong>{total_steps} steps</strong>.</p>
+                    
+                    <h3>📈 Pipeline Types</h3>
+                    <ul>
+                        <li><strong>Independent:</strong> {independent_pipelines} pipelines</li>
+                        <li><strong>Dependent:</strong> {dependent_pipelines} pipelines</li>
+                    </ul>
+                    
+                    <h3>🔧 Step Types</h3>
+                    <ul>
+                        <li><strong>Sources:</strong> {total_sources}</li>
+                        <li><strong>Processors:</strong> {total_processors}</li>
+                        <li><strong>Endpoints:</strong> {total_endpoints}</li>
+                    </ul>
+                    
+                    <h3>🏷️ Tags</h3>
+                    <p>Common tags: {common_tags}</p>"""
+    
     # Generate dependency graph data
     graph_data = generate_dependency_graph(pipelines)
     
@@ -194,6 +225,38 @@ def generate_html_docs(project_config, pipelines) -> str:
         }}
         .stat-number {{ font-size: 2rem; font-weight: bold; color: #667eea; }}
         .stat-label {{ color: #718096; font-size: 0.9rem; }}
+        
+        /* Config toggle styles */
+        .config-toggle {{
+            margin-top: 0.5rem;
+        }}
+        .config-btn {{
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: #4a5568;
+            transition: all 0.2s;
+        }}
+        .config-btn:hover {{
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }}
+        .config-content {{
+            display: none;
+            margin-top: 0.5rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border-left: 3px solid #667eea;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }}
+        .config-content.active {{
+            display: block;
+        }}
     </style>
 </head>
 <body>
@@ -248,8 +311,11 @@ def generate_html_docs(project_config, pipelines) -> str:
         for step in pipeline.steps:
             depends = f" (depends on: {', '.join(step.depends_on)})" if step.depends_on else ""
             
-            # Get the specific type
+            # Get the specific type and connection info
             step_type = ""
+            connection_info = ""
+            config_details = ""
+            
             if step.source_type:
                 step_type = f"<br><em>Source: {step.source_type}</em>"
             elif step.processor_type:
@@ -257,10 +323,42 @@ def generate_html_docs(project_config, pipelines) -> str:
             elif step.endpoint_type:
                 step_type = f"<br><em>Endpoint: {step.endpoint_type}</em>"
             
+            # Add connection info if available
+            if step.connection:
+                connection_info = f"<br><small>📡 Connection: <strong>{step.connection}</strong></small>"
+            elif step.name:  # Legacy connection field
+                connection_info = f"<br><small>📡 Connection: <strong>{step.name}</strong></small>"
+            
+            # Generate config details (collapsible)
+            if step.config:
+                config_items = []
+                for key, value in step.config.items():
+                    # Skip sensitive information
+                    if key.lower() in ['password', 'secret', 'token', 'key']:
+                        config_items.append(f"<strong>{key}:</strong> ***")
+                    else:
+                        # Truncate long values
+                        str_value = str(value)
+                        if len(str_value) > 50:
+                            str_value = str_value[:47] + "..."
+                        config_items.append(f"<strong>{key}:</strong> {str_value}")
+                
+                if config_items:
+                    config_list = "<br>".join(config_items)
+                    config_details = f"""
+            <div class="config-toggle">
+                <button class="config-btn" onclick="toggleConfig('{step.id}')">⚙️ Show Config</button>
+                <div class="config-content" id="config-{step.id}">
+                    {config_list}
+                </div>
+            </div>"""
+            
             html += f"""
         <div class="step">
             <strong>{step.id}</strong> - {step.type}{depends}
             {step_type}
+            {connection_info}
+            {config_details}
         </div>
 """
         
@@ -311,23 +409,7 @@ def generate_html_docs(project_config, pipelines) -> str:
                 <h2>📊 Project Overview</h2>
                 <div style="text-align: left; max-width: 600px; margin: 0 auto;">
                     <h3>🏗️ Architecture</h3>
-                    <p>This DFT project contains <strong>{len(pipelines)} pipelines</strong> with a total of <strong>{sum(len(p.steps) for p in pipelines)} steps</strong>.</p>
-                    
-                    <h3>📈 Pipeline Types</h3>
-                    <ul>
-                        <li><strong>Independent:</strong> {len([p for p in pipelines if not p.depends_on])} pipelines</li>
-                        <li><strong>Dependent:</strong> {len([p for p in pipelines if p.depends_on])} pipelines</li>
-                    </ul>
-                    
-                    <h3>🔧 Step Types</h3>
-                    <ul>
-                        <li><strong>Sources:</strong> {sum(len([s for s in p.steps if s.type == 'source']) for p in pipelines)}</li>
-                        <li><strong>Processors:</strong> {sum(len([s for s in p.steps if s.type == 'processor']) for p in pipelines)}</li>
-                        <li><strong>Endpoints:</strong> {sum(len([s for s in p.steps if s.type == 'endpoint']) for p in pipelines)}</li>
-                    </ul>
-                    
-                    <h3>🏷️ Tags</h3>
-                    <p>Common tags: {', '.join(sorted(set(tag for p in pipelines for tag in p.tags)))}</p>
+                    """ + overview_content + """
                 </div>
             </div>
         </div>
@@ -433,6 +515,20 @@ def generate_html_docs(project_config, pipelines) -> str:
             
             document.getElementById('graph-content').innerHTML = focusedGraph;
         }
+        
+        // Config toggle functionality
+        function toggleConfig(stepId) {{
+            const content = document.getElementById('config-' + stepId);
+            const btn = event.target;
+            
+            if (content.classList.contains('active')) {{
+                content.classList.remove('active');
+                btn.textContent = '⚙️ Show Config';
+            }} else {{
+                content.classList.add('active');
+                btn.textContent = '⚙️ Hide Config';
+            }}
+        }}
     </script>
 </body>
 </html>
