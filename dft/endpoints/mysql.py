@@ -70,8 +70,30 @@ class MySQLEndpoint(DataEndpoint):
                 column_placeholders = ', '.join(['%s'] * len(columns))
                 column_names = ', '.join([f'`{col}`' for col in columns])
                 
-                # Prepare bulk insert SQL
-                insert_sql = f'INSERT INTO `{table_name}` ({column_names}) VALUES ({column_placeholders})'
+                if mode == "upsert":
+                    # Get upsert key columns (required for upsert mode)
+                    upsert_keys = self.get_config("upsert_keys")
+                    if not upsert_keys:
+                        raise ValueError("upsert_keys is required for upsert mode. Specify unique columns for conflict resolution.")
+                    
+                    # Validate that all upsert keys exist in data
+                    if not all(key in columns for key in upsert_keys):
+                        missing_keys = [key for key in upsert_keys if key not in columns]
+                        raise ValueError(f"Upsert keys {missing_keys} not found in data columns: {columns}")
+                    
+                    # Build ON DUPLICATE KEY UPDATE clause
+                    update_columns = [col for col in columns if col not in upsert_keys]
+                    if update_columns:
+                        update_clause = ', '.join([f'`{col}` = VALUES(`{col}`)' for col in update_columns])
+                        insert_sql = f'INSERT INTO `{table_name}` ({column_names}) VALUES ({column_placeholders}) ON DUPLICATE KEY UPDATE {update_clause}'
+                    else:
+                        # If no columns to update, just ignore duplicates
+                        insert_sql = f'INSERT IGNORE INTO `{table_name}` ({column_names}) VALUES ({column_placeholders})'
+                    
+                    self.logger.info(f"Using upsert mode with keys: {upsert_keys}")
+                else:
+                    # Prepare regular bulk insert SQL
+                    insert_sql = f'INSERT INTO `{table_name}` ({column_names}) VALUES ({column_placeholders})'
                 
                 # Convert data to tuples for bulk insert
                 data_tuples = [tuple(row[col] for col in columns) for row in data_list]
@@ -80,7 +102,8 @@ class MySQLEndpoint(DataEndpoint):
                 cur.executemany(insert_sql, data_tuples)
                 conn.commit()
                 
-                self.logger.info(f"Loaded {len(data_list)} rows to MySQL table {table_name}")
+                action = "upserted" if mode == "upsert" else "loaded"
+                self.logger.info(f"{action.capitalize()} {len(data_list)} rows to MySQL table {table_name}")
             else:
                 self.logger.warning("No data to load to MySQL")
             

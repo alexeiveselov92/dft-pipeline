@@ -1,0 +1,70 @@
+name: "upsert_example"
+description: "Example pipeline demonstrating upsert functionality"
+
+sources:
+  - name: "sample_data"
+    type: "csv"
+    config:
+      path: "./sample_data.csv"
+
+endpoints:
+  # MySQL upsert example
+  - name: "mysql_upsert"
+    type: "mysql"
+    config:
+      host: "localhost"
+      database: "test_db"
+      user: "user"
+      password: "password"
+      table: "users"
+      mode: "upsert"
+      upsert_keys: ["id"]  # Primary key for conflict resolution
+      auto_create: true
+      schema:
+        id: "INT PRIMARY KEY"
+        name: "VARCHAR(100)"
+        email: "VARCHAR(100)"
+        updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+
+  # PostgreSQL upsert example with composite key
+  - name: "postgres_upsert"
+    type: "postgresql"
+    config:
+      host: "localhost"
+      database: "test_db"
+      user: "user"
+      password: "password"
+      table: "user_sessions"
+      mode: "upsert"
+      upsert_keys: ["user_id", "session_date"]  # Composite unique key
+      auto_create: true
+      schema:
+        user_id: "INTEGER"
+        session_date: "DATE"
+        session_count: "INTEGER"
+        last_activity: "TIMESTAMP"
+
+  # ClickHouse upsert example
+  - name: "clickhouse_upsert"
+    type: "clickhouse"
+    config:
+      host: "localhost"
+      database: "analytics"
+      table: "events"
+      mode: "upsert"
+      upsert_keys: ["event_id"]  # Unique event identifier
+      auto_create: true
+      engine: "MergeTree()"
+      order_by: "event_id"
+      schema:
+        event_id: "String"
+        user_id: "UInt64"
+        event_type: "String"
+        timestamp: "DateTime"
+        properties: "String"
+
+pipelines:
+  - name: "upsert_pipeline"
+    source: "sample_data"
+    processors: []
+    endpoints: ["mysql_upsert", "postgres_upsert", "clickhouse_upsert"]

@@ -68,10 +68,68 @@ class ClickHouseEndpoint(DataEndpoint):
                 columns = list(data_list[0].keys())
                 values = [tuple(row[col] for col in columns) for row in data_list]
 
+                if mode == "upsert":
+                    # Get upsert key columns (required for upsert mode)
+                    upsert_keys = self.get_config("upsert_keys")
+                    if not upsert_keys:
+                        raise ValueError("upsert_keys is required for upsert mode. Specify unique columns for conflict resolution.")
+                    
+                    # Validate that all upsert keys exist in data
+                    if not all(key in columns for key in upsert_keys):
+                        missing_keys = [key for key in upsert_keys if key not in columns]
+                        raise ValueError(f"Upsert keys {missing_keys} not found in data columns: {columns}")
+                    
+                    # For ClickHouse, use DELETE + INSERT strategy for each unique key combination
+                    # This is more reliable than ReplacingMergeTree which works asynchronously
+                    
+                    # Group values by unique key combination to optimize DELETE operations
+                    unique_key_values = set()
+                    for row_tuple in values:
+                        row_dict = dict(zip(columns, row_tuple))
+                        key_tuple = tuple(row_dict[key] for key in upsert_keys)
+                        unique_key_values.add(key_tuple)
+                    
+                    if unique_key_values:
+                        # Build WHERE condition for ALTER TABLE DELETE (compatible with older ClickHouse versions)
+                        if len(upsert_keys) == 1:
+                            # Single key optimization
+                            key_name = upsert_keys[0]
+                            key_values = [str(key_tuple[0]) for key_tuple in unique_key_values]
+                            
+                            # Use appropriate type formatting for ClickHouse
+                            if isinstance(list(unique_key_values)[0][0], str):
+                                formatted_values = "'" + "', '".join(key_values) + "'"
+                            else:
+                                formatted_values = ", ".join(key_values)
+                            
+                            delete_query = f"ALTER TABLE {table_name} DELETE WHERE {key_name} IN ({formatted_values})"
+                        else:
+                            # Multiple keys - use OR conditions for each combination
+                            conditions = []
+                            for key_tuple in unique_key_values:
+                                key_conditions = []
+                                for i, key_name in enumerate(upsert_keys):
+                                    value = key_tuple[i]
+                                    if isinstance(value, str):
+                                        key_conditions.append(f"{key_name} = '{value}'")
+                                    else:
+                                        key_conditions.append(f"{key_name} = {value}")
+                                conditions.append(f"({' AND '.join(key_conditions)})")
+                            
+                            delete_query = f"ALTER TABLE {table_name} DELETE WHERE {' OR '.join(conditions)}"
+                        
+                        # Execute DELETE
+                        client.execute(delete_query)
+                        self.logger.info(f"Deleted existing rows for {len(unique_key_values)} unique key combinations")
+                    
+                    self.logger.info(f"Using upsert mode with keys: {upsert_keys}")
+
+                # Insert new data (works for both regular insert and upsert after DELETE)
                 insert_query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES"
                 client.execute(insert_query, values)
 
-                self.logger.info(f"Loaded {len(values)} rows to ClickHouse table {table_name}")
+                action = "upserted" if mode == "upsert" else "loaded"
+                self.logger.info(f"{action.capitalize()} {len(values)} rows to ClickHouse table {table_name}")
             else:
                 self.logger.warning("No data to load to ClickHouse")
 
@@ -92,7 +150,7 @@ class ClickHouseEndpoint(DataEndpoint):
         except Exception:
             return False
 
-    def _create_table(self, client, table_name: str, arrow_table: pa.Table) -> None:
+    def _create_table(self, client, table_name: str, _: pa.Table) -> None:
         """Create table from explicit schema definition"""
 
         # Require explicit schema definition
