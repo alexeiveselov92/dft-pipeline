@@ -1,6 +1,17 @@
 # DFT - Data Flow Tools
 
-ETL pipeline framework for data analysts and engineers.
+Flexible ETL pipeline framework designed for data analysts and engineers. Build, orchestrate, and monitor data pipelines with YAML configurations.
+
+## ✨ Key Features
+
+- **🔧 Component-Based**: Modular sources, processors, and endpoints
+- **📋 YAML Configuration**: Simple, readable pipeline definitions
+- **🔗 Dependency Management**: Automatic pipeline ordering and validation
+- **📊 Interactive Documentation**: Web-based pipeline exploration with component library
+- **💾 Database Support**: PostgreSQL, MySQL, ClickHouse with upsert capabilities
+- **🔄 Incremental Processing**: Smart data loading with state management
+- **⚙️ Data Validation**: Built-in quality checks and constraints
+- **🎯 Analyst-Friendly**: Rich CLI tools and component discovery
 
 ## 🚀 Quick Start
 
@@ -11,474 +22,344 @@ ETL pipeline framework for data analysts and engineers.
 git clone <repository-url>
 cd dft
 
-# Install package (dependencies will be installed automatically)
-pip install .
+# Install package with dependencies
+pip install -e .
 ```
 
 ### 2. Create Project
 
 ```bash
-# Create new project
+# Initialize new project
 dft init my_analytics_project
 cd my_analytics_project
 ```
 
-### 3. Configure Connections
+### 3. Explore Examples
 
-Create `dft_project.yml` file:
+```bash
+# Try the example project
+cd example_project
+
+# View interactive documentation
+dft docs --serve
+# Opens at http://localhost:8080
+
+# Discover available components
+dft components list
+
+# Run a simple pipeline
+dft run --select simple_csv_example
+```
+
+## 📦 Component Library
+
+DFT provides a rich library of pre-built components:
+
+### 📥 Sources
+- **CSV**: Read data from CSV files with configurable delimiters and encoding
+- **PostgreSQL**: Extract data with SQL queries and named connections
+- **MySQL**: Database source with connection pooling
+- **ClickHouse**: High-performance analytics database source
+- **Google Play**: Specialized financial data extraction
+
+### ⚙️ Processors
+- **Validator**: Data quality checks with custom rules and constraints
+- **MAD Anomaly Detector**: Statistical anomaly detection for data monitoring
+
+### 📤 Endpoints
+- **CSV**: Write processed data to CSV files
+- **PostgreSQL**: Load data with append/replace/upsert modes
+- **MySQL**: Advanced upsert operations with conflict resolution
+- **ClickHouse**: Optimized bulk loading for analytics workloads
+- **JSON**: Export data in JSON format
+
+## 🔧 Component Discovery
+
+### CLI Commands
+
+```bash
+# List all components
+dft components list
+
+# Filter by type
+dft components list --type endpoint
+
+# Get detailed information
+dft components describe mysql
+
+# View configuration examples
+dft components describe validator --format yaml
+```
+
+### Web Interface
+
+Access the interactive component library at `dft docs --serve`:
+- Browse components by category
+- View configuration requirements
+- Copy-paste ready YAML examples
+- Interactive component details
+
+## 💾 Database Features
+
+### Named Connections
+
+Define reusable database connections:
 
 ```yaml
 # dft_project.yml
-project_name: my_analytics
-
-# State management configuration
-state:
-  ignore_in_git: true  # Recommended for development
-
-# Logging configuration
-logging:
-  level: INFO    # Log level: DEBUG, INFO, WARNING, ERROR
-  dir: .dft/logs # Directory for log files
-
-# Database and service connections (can be used as sources and endpoints)
 connections:
-  my_postgres:
+  analytics_db:
     type: postgresql
-    host: "{{ env_var('POSTGRES_HOST') }}"
-    port: 5432
-    database: "{{ env_var('POSTGRES_DB') }}"
-    user: "{{ env_var('POSTGRES_USER') }}"
-    password: "{{ env_var('POSTGRES_PASSWORD') }}"
-    
-  my_clickhouse:
-    type: clickhouse
-    host: "{{ env_var('CH_HOST') }}"
-    port: 9000
-    database: "{{ env_var('CH_DATABASE') }}"
-    user: "{{ env_var('CH_USER') }}"
-    password: "{{ env_var('CH_PASSWORD') }}"
-
-variables:
-  default_start_date: "2024-01-01"
+    host: analytics.company.com
+    database: warehouse
+    user: analyst
+    password: "${POSTGRES_PASSWORD}"
+  
+  main_mysql:
+    type: mysql
+    host: mysql.company.com
+    database: production
+    user: readonly
+    password: "${MYSQL_PASSWORD}"
 ```
 
-Create `.env` file:
+### Upsert Operations
 
-```bash
-# .env
-POSTGRES_HOST=localhost
-POSTGRES_DB=analytics
-POSTGRES_USER=analyst
-POSTGRES_PASSWORD=password123
-
-CH_HOST=clickhouse.company.com  
-CH_DATABASE=analytics
-CH_USER=default
-CH_PASSWORD=
-```
-
-### 4. Create Pipeline
-
-Create `pipelines/daily_metrics.yml` file:
+Intelligent insert-or-update operations:
 
 ```yaml
-pipeline_name: daily_metrics
-tags: [daily, metrics]
-
-variables:
-  start_date: "{{ state.get('last_processed_date', var('default_start_date')) }}"
-  end_date: "{{ yesterday() }}"
-
-steps:
-  # Extract data from source
-  - id: extract_events
-    type: source
-    source_type: postgresql
-    connection: my_postgres
-    config:
-      query: |
-        SELECT 
-          user_id,
-          event_date,
-          event_type,
-          revenue
-        FROM events 
-        WHERE event_date BETWEEN '{{ var("start_date") }}' AND '{{ var("end_date") }}'
-  
-  # Validate data
-  - id: validate_data
-    type: processor
-    processor_type: validator
-    depends_on: [extract_events]
-    config:
-      required_columns: [user_id, event_date, event_type]
-      row_count_min: 1
-  
-  # Save to ClickHouse
-  - id: save_to_warehouse
-    type: endpoint
-    endpoint_type: clickhouse
-    connection: my_clickhouse
-    depends_on: [validate_data]
-    config:
-      table: "daily_events"
-      auto_create: true
-      mode: "append"
-      schema:
-        user_id: "String"
-        event_date: "Date"
-        event_type: "String"
-        revenue: "Float64"
-        processed_at: "DateTime DEFAULT now()"
-      engine: "MergeTree()"
-      order_by: "(event_date, user_id)"
+# MySQL upsert example
+- id: upsert_users
+  type: endpoint
+  endpoint_type: mysql
+  connection: main_mysql
+  config:
+    table: users
+    mode: upsert
+    upsert_keys: [id]  # Conflict resolution on 'id' column
+    auto_create: true
+    schema:
+      id: "INT PRIMARY KEY"
+      name: "VARCHAR(100)"
+      email: "VARCHAR(100)"
+      updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 ```
 
-### 5. Run Pipeline
+## 📋 Pipeline Configuration
 
-```bash
-# Run specific pipeline
-dft run --select daily_metrics
-
-# Run all pipelines with tag
-dft run --select tag:daily
-
-# Full refresh (ignore state)
-dft run --select daily_metrics --full-refresh
-
-# Run with variables
-dft run --select daily_metrics --vars start_date=2024-01-01,end_date=2024-01-31
-```
-
-## 📋 Core Commands
-
-```bash
-# Project initialization
-dft init my_project
-
-# Running pipelines
-dft run                           # Run all pipelines in dependency order
-dft run --select pipeline_name    # Run specific pipeline
-dft run --select tag:daily        # Run pipelines with tag
-dft run --exclude tag:slow        # Exclude pipelines with tag
-
-# Dependency selectors (dbt-style)
-dft run --select +pipeline_name   # Run upstream dependencies
-dft run --select pipeline_name+   # Run downstream dependencies  
-dft run --select +pipeline_name+  # Run all related pipelines
-
-# Pipeline validation
-dft validate                      # Validate all pipeline configurations
-dft validate --select my_pipeline # Validate specific pipeline
-
-# Dependency analysis
-dft deps                          # Show all dependencies
-dft deps --select my_pipeline     # Dependencies for pipeline
-
-# Documentation and utilities
-dft docs                          # Generate documentation
-dft docs --serve                  # Start web server with documentation
-dft update-gitignore              # Update .gitignore based on project config
-```
-
-## 🔌 Supported Components
-
-### Data Sources
-- **CSV** - read CSV files
-- **JSON** - read JSON files  
-- **PostgreSQL** - SQL queries to PostgreSQL
-- **ClickHouse** - SQL queries to ClickHouse
-- **MySQL** - SQL queries to MySQL
-- **Google Play** - data loading from Google Play Console
-
-### Processors  
-- **validator** - schema and data quality validation
-- **mad_anomaly_detector** - MAD method anomaly detector
-
-### Data Endpoints
-- **CSV** - save to CSV files
-- **JSON** - save to JSON files
-- **PostgreSQL** - load to PostgreSQL tables
-- **ClickHouse** - load to ClickHouse tables  
-- **MySQL** - load to MySQL tables
-
-## 🔗 Pipeline Dependencies
-
-DFT supports inter-pipeline dependencies similar to dbt. This allows building complex data flows where one pipeline depends on the results of another.
-
-### Defining Dependencies
+### Basic Pipeline
 
 ```yaml
-# pipelines/base_data.yml
-pipeline_name: base_data
-tags: [base, etl]
+name: simple_etl
+description: Extract, validate, and load user data
 
-steps:
-  - id: extract_raw_data
-    type: source
-    source_type: postgresql
+sources:
+  - name: user_data
+    type: csv
     config:
-      query: "SELECT * FROM raw_events"
-  
-  - id: save_base_data
-    type: endpoint
-    endpoint_type: csv
-    depends_on: [extract_raw_data]
+      file_path: "data/users.csv"
+
+endpoints:
+  - name: clean_users
+    type: postgresql
+    connection: analytics_db
     config:
-      file_path: "output/base_data.csv"
+      table: users_clean
+      mode: replace
+
+pipelines:
+  - name: process_users
+    source: user_data
+    processors:
+      - type: validator
+        config:
+          required_columns: [id, email, created_at]
+          row_count_min: 1
+    endpoints: [clean_users]
 ```
 
+### Advanced Pipeline with Dependencies
+
 ```yaml
-# pipelines/analytics.yml
-pipeline_name: analytics
+name: customer_analytics
 tags: [analytics, daily]
-depends_on: [base_data]  # Depends on base_data pipeline
+depends_on: [data_ingestion]  # Run after data_ingestion pipeline
 
-steps:
-  - id: read_base_data
-    type: source
-    source_type: csv
-    config:
-      file_path: "output/base_data.csv"
-  
-  - id: process_analytics
-    type: processor
-    processor_type: validator
-    depends_on: [read_base_data]
-    config:
-      required_columns: [user_id, event_date]
+variables:
+  analysis_date: "{{ yesterday() }}"
+  min_transaction_amount: 10.00
+
+pipelines:
+  - name: customer_metrics
+    source: transaction_data
+    processors:
+      - type: validator
+        config:
+          checks:
+            - column: amount
+              min_value: "{{ var('min_transaction_amount') }}"
+              not_null: true
+    endpoints: [metrics_warehouse]
 ```
 
-### Automatic Ordering
+## 🔄 Pipeline Execution
 
-When running `dft run`, pipelines are automatically executed in the correct order:
+### Basic Execution
 
 ```bash
-# Run all pipelines - they will execute in dependency order
+# Run all pipelines
 dft run
 
-# Result:
-# 1. base_data (runs first)
-# 2. analytics (runs after base_data)
+# Run specific pipeline
+dft run --select customer_analytics
+
+# Run by tags
+dft run --select tag:daily
 ```
 
-### Dependency Selectors (dbt-style)
-
-Use `+` syntax to select pipelines by dependencies:
+### Dependency-Aware Execution
 
 ```bash
-# Run all pipelines that analytics depends on
-dft run --select +analytics
+# Run pipeline and all dependencies
+dft run --select +customer_analytics
 
-# Run all pipelines that depend on base_data
-dft run --select base_data+
+# Run pipeline and all dependents
+dft run --select customer_analytics+
 
-# Run base_data and all its upstream/downstream dependencies
-dft run --select +base_data+
+# Run full dependency tree
+dft run --select +customer_analytics+
 ```
 
-### Connection Reuse Example
-
-The same connection can be used as both source and endpoint:
-
-```yaml
-# Example: Data transformation within same database
-steps:
-  # Read from table A
-  - id: extract_raw_data
-    type: source
-    source_type: postgresql
-    connection: my_postgres  # Same connection
-    config:
-      query: "SELECT * FROM raw_table"
-  
-  # Transform data
-  - id: validate_data
-    type: processor
-    processor_type: validator
-    depends_on: [extract_raw_data]
-    config:
-      required_columns: [id, name]
-  
-  # Write to table B in same database
-  - id: save_processed_data
-    type: endpoint
-    endpoint_type: postgresql
-    connection: my_postgres  # Same connection reused
-    depends_on: [validate_data]
-    config:
-      table: "processed_table"
-      auto_create: true
-      mode: "append"
-      schema:
-        id: "INTEGER"
-        name: "TEXT"
-        processed_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
-```
-
-### Dependency Validation
-
-DFT automatically validates dependency correctness on any run:
-
-- ✅ All dependent pipelines exist
-- ✅ No circular dependencies
-- ✅ If a dependency pipeline fails, dependent pipelines are skipped
+### Pipeline Variables
 
 ```bash
-# If there are dependency errors, you get an error even when running another pipeline
-dft run --select independent_pipeline
-# Error: Pipeline 'analytics' depends on 'nonexistent_pipeline' which does not exist
+# Override pipeline variables
+dft run --select customer_analytics --vars analysis_date=2024-01-15,min_amount=5.00
 ```
 
-## ⚡ Incremental Processing
+## 📊 Documentation & Monitoring
 
-DFT automatically tracks pipeline state and supports incremental updates:
+### Interactive Documentation
+
+Generate comprehensive project documentation:
+
+```bash
+dft docs --serve
+```
+
+Features:
+- **Pipeline Overview**: Visual dependency graphs with filtering
+- **Component Library**: Interactive component browser with examples
+- **Configuration Details**: Collapsible component configurations
+- **YAML Examples**: Copy-paste ready configurations
+
+### Pipeline Validation
+
+```bash
+# Validate all pipeline configurations
+dft validate
+
+# Validate specific pipelines
+dft validate --select customer_analytics
+
+# Check dependencies
+dft deps
+```
+
+## 🎯 For Data Analysts
+
+DFT is designed with analysts in mind:
+
+### 1. **Discover Components**
+```bash
+dft components list --type source
+dft components describe postgresql
+```
+
+### 2. **Build Pipelines**
+- Copy YAML examples from documentation
+- Use named connections for database access
+- Apply data validation rules
+
+### 3. **Monitor & Debug**
+- Interactive web documentation
+- Pipeline dependency visualization
+- Built-in configuration validation
+
+### 4. **Scale Operations**
+- Incremental data processing
+- Dependency-aware execution
+- Environment-specific configurations
+
+## 🔍 Advanced Features
+
+### Environment Configuration
+
+```bash
+# Development environment
+export DFT_ENV=dev
+dft run --select customer_analytics
+
+# Production environment  
+export DFT_ENV=prod
+dft run --select customer_analytics
+```
+
+### State Management
+
+DFT automatically tracks pipeline execution state for incremental processing:
 
 ```yaml
 variables:
-  # On first run start_date = days_ago(7)
-  # On subsequent runs start_date = last processed date + 1 day
+  # Start from last processed date or 7 days ago
   start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
   end_date: "{{ yesterday() }}"
 ```
 
-After successful pipeline execution, DFT automatically updates `last_processed_date`.
+### Custom Processors
 
-## ⚙️ State Management
+Extend DFT with custom processing logic:
 
-DFT tracks pipeline execution state to enable incremental processing. State files store information like `last_processed_date` to avoid reprocessing the same data.
+```python
+from dft.core.base import DataProcessor
 
-### What is State?
-State files contain metadata about pipeline execution:
-- `last_processed_date` - for incremental data processing
-- Execution history and status
-- Custom state variables
-
-State is stored in `.dft/state/` directory as JSON files.
-
-### Configuration Options
-
-DFT supports configurable state management for different deployment scenarios:
-
-#### Development Setup (Default)
-```yaml
-# dft_project.yml
-state:
-  ignore_in_git: true  # State files ignored in git (recommended for dev)
-```
-
-**Use case**: Local development, each developer has their own state
-- ✅ No state conflicts between developers
-- ✅ Clean git history without state changes
-- ❌ State not preserved on fresh git clone
-
-#### Production/GitOps Setup
-```yaml
-# dft_project.yml  
-state:
-  ignore_in_git: false  # State files versioned in git (for GitOps)
-```
-
-**Use case**: Production deployments, GitOps workflows
-- ✅ State preserved across deployments
-- ✅ Consistent incremental processing
-- ✅ State history tracked in git
-- ❌ Potential merge conflicts on state files
-
-### Update Git Configuration
-```bash
-# After changing state config, update .gitignore
-dft update-gitignore
-```
-
-### State in Action
-```yaml
-# Pipeline uses state for incremental processing
-variables:
-  # First run: processes last 7 days
-  # Subsequent runs: processes from last_processed_date
-  start_date: "{{ state.get('last_processed_date', days_ago(7)) }}"
-  end_date: "{{ yesterday() }}"
-```
-
-## 📝 Logging Configuration
-
-DFT automatically logs pipeline execution details for monitoring and debugging.
-
-### Configuration
-```yaml
-# dft_project.yml
-logging:
-  level: INFO          # DEBUG, INFO, WARNING, ERROR
-  dir: .dft/logs       # Log files directory
-```
-
-### Log Files
-- **Location**: `.dft/logs/dft_YYYYMMDD.log`
-- **Format**: Timestamped entries with step details
-- **Content**: Pipeline execution, data metrics, errors
-- **Rotation**: Daily log files
-
-### Log Levels
-- **DEBUG**: Detailed execution information
-- **INFO**: Pipeline steps and data metrics (default)
-- **WARNING**: Non-critical issues
-- **ERROR**: Critical failures
-
-### Example Log Output
-```
-2024-01-15 10:30:15 [INFO] Starting pipeline: daily_metrics
-2024-01-15 10:30:16 [INFO] Step extract_events: Processing 1,234 rows
-2024-01-15 10:30:18 [INFO] Step validate_data: 1,234 rows passed validation
-2024-01-15 10:30:20 [INFO] Step save_to_warehouse: 1,234 rows saved to daily_events
-2024-01-15 10:30:20 [INFO] Pipeline daily_metrics completed successfully
+class CustomTransformer(DataProcessor):
+    """Custom data transformation processor"""
+    
+    def process(self, packet, variables=None):
+        # Your custom logic here
+        return transformed_packet
 ```
 
 ## 📁 Project Structure
 
 ```
-my_analytics_project/
-├── dft_project.yml              # Project configuration and connections
-├── .env                         # Secret variables
-├── pipelines/                   # Pipeline YAML files
-│   ├── daily_metrics.yml
-│   ├── user_analysis.yml
-│   └── ab_tests.yml
-├── output/                      # Generated output files (ignored in git)
-├── .dft/
-│   ├── state/                   # Pipeline state (configurable)
-│   └── logs/                    # Execution logs
-└── docs/                        # Generated documentation
+my_project/
+├── dft_project.yml          # Project configuration
+├── .env                     # Environment variables
+├── pipelines/               # Pipeline definitions
+│   ├── ingestion.yml
+│   ├── analytics.yml
+│   └── reporting.yml
+├── data/                    # Input data files
+├── output/                  # Generated outputs
+└── .dft/                    # DFT metadata
+    ├── docs/                # Generated documentation
+    ├── state/               # Pipeline state files
+    └── logs/                # Execution logs
 ```
 
-## 🔧 Development
+## 🤝 Contributing
 
-```bash
-# Install for development
-pip install -e ".[dev]"
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Submit a pull request
 
-# Run tests
-pytest
+## 📄 License
 
-# Type checking
-mypy dft/
+MIT License - see LICENSE file for details.
 
-# Code formatting
-black dft/
-isort dft/
-```
+---
 
-## 📖 Additional Documentation
-
-- [PIPELINE_DEPENDENCIES.md](PIPELINE_DEPENDENCIES.md) - Detailed guide on inter-pipeline dependencies
-- [DATABASE_INTEGRATION.md](DATABASE_INTEGRATION.md) - Detailed guide on database integration
-- [examples/](examples/) - Pipeline examples
-
-## 🆘 Support
-
-When encountering issues:
-
-1. Check logs in `.dft/logs/`
-2. Run `dft validate` to verify configuration
-3. Ensure all environment variables are set
-4. Create an issue in the project repository
+**Get started with the example project**: `cd example_project && dft docs --serve`
