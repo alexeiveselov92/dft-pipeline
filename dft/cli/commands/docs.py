@@ -3,6 +3,7 @@
 import click
 from pathlib import Path
 from datetime import datetime
+from .components import discover_components
 
 
 def generate_docs(serve: bool) -> None:
@@ -93,6 +94,9 @@ def generate_html_docs(project_config, pipelines) -> str:
     
     # Generate dependency graph data
     graph_data = generate_dependency_graph(pipelines)
+    
+    # Discover available components
+    components_data = discover_components()
     
     html = f"""
 <!DOCTYPE html>
@@ -257,6 +261,88 @@ def generate_html_docs(project_config, pipelines) -> str:
         .config-content.active {{
             display: block;
         }}
+        
+        /* Components styles */
+        .components-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }}
+        .component-card {{
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }}
+        .component-card:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-color: #667eea;
+        }}
+        .component-card h4 {{
+            margin: 0 0 0.5rem 0;
+            color: #2d3748;
+            font-size: 1.1rem;
+        }}
+        .component-description {{
+            color: #4a5568;
+            font-size: 0.9rem;
+            margin: 0 0 0.5rem 0;
+            line-height: 1.4;
+        }}
+        .component-module {{
+            color: #718096;
+            font-size: 0.8rem;
+        }}
+        .component-details {{
+            display: none;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }}
+        .component-details.active {{
+            display: block;
+        }}
+        .component-details h5 {{
+            margin: 1rem 0 0.5rem 0;
+            color: #2d3748;
+            font-size: 0.9rem;
+        }}
+        .component-details h6 {{
+            margin: 0.5rem 0 0.25rem 0;
+            color: #4a5568;
+            font-size: 0.8rem;
+        }}
+        .component-details ul {{
+            margin: 0 0 1rem 0;
+            padding-left: 1rem;
+        }}
+        .component-details li {{
+            margin: 0.25rem 0;
+            font-size: 0.8rem;
+        }}
+        .component-details code {{
+            background: #f7fafc;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            font-size: 0.8rem;
+        }}
+        .yaml-example {{
+            margin: 0.5rem 0;
+        }}
+        .yaml-example pre {{
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 0.75rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            margin: 0.25rem 0;
+        }}
     </style>
 </head>
 <body>
@@ -284,6 +370,7 @@ def generate_html_docs(project_config, pipelines) -> str:
         <div class="tabs">
             <button class="tab active" onclick="showTab('pipelines')">📋 Pipelines</button>
             <button class="tab" onclick="showTab('graph')">🔗 Dependencies</button>
+            <button class="tab" onclick="showTab('components')">📦 Components</button>
             <button class="tab" onclick="showTab('overview')">📊 Overview</button>
         </div>
         
@@ -402,6 +489,10 @@ def generate_html_docs(project_config, pipelines) -> str:
                     </div>
                 </div>
             </div>
+        </div>
+        
+        <div id="components" class="tab-content">
+            """ + generate_components_html(components_data) + """
         </div>
         
         <div id="overview" class="tab-content">
@@ -529,6 +620,17 @@ def generate_html_docs(project_config, pipelines) -> str:
                 btn.textContent = '⚙️ Hide Config';
             }}
         }}
+        
+        // Component details toggle functionality
+        function toggleComponentDetails(componentName) {{
+            const details = document.getElementById('details-' + componentName);
+            
+            if (details.classList.contains('active')) {{
+                details.classList.remove('active');
+            }} else {{
+                details.classList.add('active');
+            }}
+        }}
     </script>
 </body>
 </html>
@@ -598,3 +700,163 @@ def generate_pipeline_json(pipelines) -> str:
         })
     
     return json.dumps(pipeline_data)
+
+
+def generate_components_html(components_data):
+    """Generate HTML for components documentation"""
+    if not components_data:
+        return """
+            <div class="graph-container">
+                <h2>📦 Available Components</h2>
+                <p>No components found.</p>
+            </div>
+        """
+    
+    # Group components by type
+    by_type = {}
+    for name, info in components_data.items():
+        comp_type = info['type']
+        if comp_type not in by_type:
+            by_type[comp_type] = []
+        by_type[comp_type].append((name, info))
+    
+    html = """
+            <div class="graph-container">
+                <h2>📦 Available Components</h2>
+                <p>Click on any component to view its configuration details and YAML examples.</p>
+    """
+    
+    for comp_type, items in sorted(by_type.items()):
+        # Type header
+        type_icons = {'source': '📥', 'processor': '⚙️', 'endpoint': '📤'}
+        icon = type_icons.get(comp_type, '📦')
+        
+        html += f"""
+                <h3>{icon} {comp_type.title()}s</h3>
+                <div class="components-grid">
+        """
+        
+        # Component cards
+        for name, info in sorted(items):
+            description = info.get('description', 'No description available')
+            docstring = info.get('docstring', '')
+            
+            # Extract config info
+            config_info = extract_config_summary(docstring)
+            
+            html += f"""
+                    <div class="component-card" onclick="toggleComponentDetails('{name}')">
+                        <h4>{name}</h4>
+                        <p class="component-description">{description}</p>
+                        <small class="component-module">{info.get('module', '')}</small>
+                        <div class="component-details" id="details-{name}">
+                            <div class="config-summary">
+                                {config_info}
+                            </div>
+                            <div class="yaml-examples">
+                                {extract_yaml_examples_html(docstring)}
+                            </div>
+                        </div>
+                    </div>
+            """
+        
+        html += """
+                </div>
+        """
+    
+    html += """
+            </div>
+    """
+    
+    return html
+
+
+def extract_config_summary(docstring):
+    """Extract configuration summary from docstring"""
+    if not docstring:
+        return "<p>No configuration documentation available.</p>"
+    
+    lines = docstring.split('\n')
+    config_html = ""
+    in_required = False
+    in_optional = False
+    
+    for line in lines:
+        line = line.strip()
+        
+        if line.lower().startswith('required config:'):
+            config_html += "<h5>Required Configuration:</h5><ul>"
+            in_required = True
+            in_optional = False
+        elif line.lower().startswith('optional config:'):
+            if in_required:
+                config_html += "</ul>"
+            config_html += "<h5>Optional Configuration:</h5><ul>"
+            in_required = False
+            in_optional = True
+        elif (in_required or in_optional) and line and not line.lower().endswith(':'):
+            if line.startswith('    ') or line.startswith('\t'):
+                # This is a config parameter
+                param_line = line.strip()
+                if ':' in param_line:
+                    config_html += f"<li><code>{param_line}</code></li>"
+        elif line.lower().startswith('yaml example') or not line:
+            if in_required or in_optional:
+                config_html += "</ul>"
+            break
+    
+    if in_required or in_optional:
+        config_html += "</ul>"
+    
+    return config_html if config_html else "<p>No configuration details available.</p>"
+
+
+def extract_yaml_examples_html(docstring):
+    """Extract YAML examples as HTML"""
+    if not docstring:
+        return ""
+    
+    examples = []
+    lines = docstring.split('\n')
+    in_yaml_block = False
+    current_example = []
+    example_title = ""
+    
+    for line in lines:
+        if 'yaml example' in line.lower():
+            if current_example and in_yaml_block:
+                examples.append((example_title, '\n'.join(current_example)))
+            current_example = []
+            in_yaml_block = True
+            example_title = line.strip().rstrip(':')
+            continue
+        
+        if in_yaml_block:
+            if line.strip() and not line.startswith('    ') and not line.startswith('\t'):
+                # End of example
+                if current_example:
+                    examples.append((example_title, '\n'.join(current_example)))
+                current_example = []
+                in_yaml_block = False
+            else:
+                if line.strip():
+                    current_example.append(line[4:] if line.startswith('    ') else line)
+                elif current_example:
+                    current_example.append('')
+    
+    if current_example and in_yaml_block:
+        examples.append((example_title, '\n'.join(current_example)))
+    
+    if not examples:
+        return "<p>No YAML examples available.</p>"
+    
+    html = ""
+    for title, content in examples:
+        html += f"""
+            <div class="yaml-example">
+                <h6>{title}</h6>
+                <pre><code class="yaml">{content}</code></pre>
+            </div>
+        """
+    
+    return html

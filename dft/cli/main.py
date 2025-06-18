@@ -86,5 +86,10 @@ def update_gitignore_cmd(config: str) -> None:
     update_gitignore.callback(config)
 
 
+# Add components subcommand
+from .commands.components import components
+cli.add_command(components)
+
+
 if __name__ == "__main__":
     cli()

@@ -10,7 +10,38 @@ from ..core.data_packet import DataPacket
 
 
 class CSVSource(DataSource):
-    """CSV file data source"""
+    """
+    CSV file data source - read data from CSV files
+    
+    Required config:
+        file_path (str): Path to the CSV file
+    
+    Optional config:
+        delimiter (str): Column delimiter (default: ',')
+        encoding (str): File encoding (default: 'utf-8')
+        has_header (bool): Whether first row contains column names (default: True)
+        skip_rows (int): Number of rows to skip from beginning (default: 0)
+    
+    YAML Example:
+        steps:
+          - id: read_data
+            type: source
+            source_type: csv
+            config:
+              file_path: "data/input.csv"
+              delimiter: ","
+              encoding: "utf-8"
+              has_header: true
+              skip_rows: 0
+    
+    Variables Example:
+        steps:
+          - id: read_data
+            type: source
+            source_type: csv
+            config:
+              file_path: "{{ var('input_file') }}"
+    """
     
     def extract(self, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
         """Extract data from CSV file"""

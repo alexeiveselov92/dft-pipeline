@@ -9,7 +9,77 @@ from ..core.data_packet import DataPacket
 
 
 class MySQLEndpoint(DataEndpoint):
-    """MySQL database data endpoint"""
+    """
+    MySQL database endpoint - load data to MySQL tables
+    
+    Required config:
+        table (str): Target table name
+        host (str): MySQL server host
+        database (str): Database name
+        user (str): Username for authentication
+        password (str): Password for authentication
+    
+    Optional config:
+        port (int): MySQL server port (default: 3306)
+        charset (str): Connection charset (default: 'utf8mb4')
+        mode (str): Load mode - 'append', 'replace', or 'upsert' (default: 'append')
+        auto_create (bool): Auto-create table if not exists (default: True)
+        schema (dict): Table schema for auto-creation (required if auto_create=True)
+        upsert_keys (list): Unique columns for upsert mode (required if mode='upsert')
+    
+    YAML Example - Basic:
+        steps:
+          - id: save_to_mysql
+            type: endpoint
+            endpoint_type: mysql
+            config:
+              host: "localhost"
+              database: "analytics"
+              user: "analyst"
+              password: "secret123"
+              table: "user_data"
+              mode: "append"
+    
+    YAML Example - Upsert with schema:
+        steps:
+          - id: upsert_users
+            type: endpoint
+            endpoint_type: mysql
+            config:
+              host: "localhost"
+              database: "analytics"
+              user: "analyst"
+              password: "secret123"
+              table: "users"
+              mode: "upsert"
+              upsert_keys: ["id"]
+              auto_create: true
+              schema:
+                id: "INT PRIMARY KEY"
+                name: "VARCHAR(100)"
+                email: "VARCHAR(100)"
+                updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    
+    Named Connection Example:
+        # In dft_project.yml:
+        connections:
+          main_db:
+            type: mysql
+            host: "localhost"
+            database: "analytics"
+            user: "analyst"
+            password: "secret123"
+        
+        # In pipeline:
+        steps:
+          - id: save_data
+            type: endpoint
+            endpoint_type: mysql
+            connection: "main_db"
+            config:
+              table: "user_data"
+              mode: "append"
+    """
     
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)

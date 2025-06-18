@@ -8,7 +8,51 @@ from ..core.data_packet import DataPacket
 
 
 class DataValidator(DataProcessor):
-    """Data validation processor"""
+    """
+    Data validation processor - validate data quality and constraints
+    
+    Optional config:
+        required_columns (list): List of column names that must be present
+        row_count_min (int): Minimum number of rows required
+        row_count_max (int): Maximum number of rows allowed
+        checks (list): List of column validation rules
+    
+    Check rule format:
+        - column (str): Column name to validate
+        - min_value (float): Minimum allowed value for numeric columns
+        - max_value (float): Maximum allowed value for numeric columns
+        - not_null (bool): Whether column can contain null values (default: false)
+        - unique (bool): Whether column values must be unique (default: false)
+    
+    YAML Example - Basic validation:
+        steps:
+          - id: validate_data
+            type: processor
+            processor_type: validator
+            config:
+              required_columns: ["id", "name", "email"]
+              row_count_min: 1
+              row_count_max: 1000
+    
+    YAML Example - Advanced validation:
+        steps:
+          - id: validate_transactions
+            type: processor
+            processor_type: validator
+            config:
+              required_columns: ["trans_id", "amount", "customer_id"]
+              row_count_min: 1
+              checks:
+                - column: "amount"
+                  min_value: 0
+                  max_value: 10000
+                  not_null: true
+                - column: "trans_id"
+                  unique: true
+                  not_null: true
+                - column: "customer_id"
+                  not_null: true
+    """
     
     def process(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
         """Validate data packet"""
