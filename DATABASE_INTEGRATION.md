@@ -7,12 +7,14 @@
 - **ClickHouse** - optimized for analytics, column types support
 - **MySQL** - full compatibility with charset settings
 - **Google Play Console** - financial and installs data extraction
+- **Custom Sources** - plugin system for adding your own data sources
 
 ### 📊 Data Endpoints  
 - **PostgreSQL/ClickHouse/MySQL** - automatic table creation from data
 - **Load modes**: append, replace, upsert
 - **Smart type detection** from Arrow schema
 - **Custom schema** via configuration
+- **Custom Endpoints** - plugin system for adding your own data destinations
 
 ### ⚡ Incremental Processing
 - **State management** - tracking last processed dates
@@ -256,3 +258,171 @@ A: Use incremental processing, database partitioning, and batch loading modes.
 
 **Q: Do I need a generic "database" source?**
 A: No, it's better to use specific sources (postgresql, clickhouse, mysql) for optimal performance with each database.
+
+## 🔌 Custom Database Components
+
+DFT's plugin system allows you to add custom database sources and endpoints directly to your project.
+
+### Custom Database Source Example
+
+```python
+# dft/sources/snowflake_source.py
+from typing import Any, Dict, Optional
+from dft.core.base import DataSource
+from dft.core.data_packet import DataPacket
+import pandas as pd
+
+class SnowflakeSource(DataSource):
+    """Custom Snowflake data source"""
+    
+    def extract(self, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
+        # Get connection details from config
+        account = self.get_config('account')
+        user = self.get_config('user') 
+        password = self.get_config('password')
+        warehouse = self.get_config('warehouse')
+        database = self.get_config('database')
+        schema = self.get_config('schema', 'PUBLIC')
+        query = self.get_config('query')
+        
+        # Connect to Snowflake
+        import snowflake.connector
+        conn = snowflake.connector.connect(
+            account=account,
+            user=user,
+            password=password,
+            warehouse=warehouse,
+            database=database,
+            schema=schema
+        )
+        
+        # Execute query
+        df = pd.read_sql(query, conn)
+        conn.close()
+        
+        return DataPacket(
+            data=df,
+            metadata={
+                'source': 'snowflake',
+                'row_count': len(df),
+                'query': query
+            }
+        )
+    
+    def test_connection(self) -> bool:
+        try:
+            # Test connection logic
+            return True
+        except Exception:
+            return False
+```
+
+### Custom Database Endpoint Example
+
+```python  
+# dft/endpoints/bigquery_endpoint.py
+from typing import Any, Dict, Optional
+from dft.core.base import DataEndpoint
+from dft.core.data_packet import DataPacket
+
+class BigQueryEndpoint(DataEndpoint):
+    """Custom BigQuery data endpoint"""
+    
+    def load(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> bool:
+        df = packet.data
+        project_id = self.get_config('project_id')
+        dataset_id = self.get_config('dataset_id')
+        table_id = self.get_config('table_id')
+        mode = self.get_config('mode', 'append')  # append/replace
+        
+        from google.cloud import bigquery
+        import pandas_gbq
+        
+        # Upload to BigQuery
+        destination_table = f"{project_id}.{dataset_id}.{table_id}"
+        
+        if_exists = 'append' if mode == 'append' else 'replace'
+        
+        pandas_gbq.to_gbq(
+            df, 
+            destination_table, 
+            project_id=project_id,
+            if_exists=if_exists
+        )
+        
+        print(f"Loaded {len(df)} rows to {destination_table}")
+        return True
+```
+
+### Using Custom Database Components
+
+```yaml
+# pipelines/snowflake_to_bigquery.yml
+pipeline_name: snowflake_to_bigquery
+description: Move data from Snowflake to BigQuery
+
+steps:
+  - id: extract_from_snowflake
+    type: source
+    source_type: snowflake  # Uses SnowflakeSource class
+    config:
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+      warehouse: "ANALYTICS_WH"
+      database: "PROD_DB"
+      schema: "ANALYTICS"
+      query: |
+        SELECT 
+          customer_id,
+          order_date,
+          total_amount,
+          status
+        FROM orders 
+        WHERE order_date >= CURRENT_DATE - 7
+        
+  - id: validate_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_from_snowflake]
+    config:
+      required_columns: [customer_id, order_date, total_amount]
+      row_count_min: 1
+      
+  - id: load_to_bigquery
+    type: endpoint
+    endpoint_type: big_query  # Uses BigQueryEndpoint class
+    depends_on: [validate_data]
+    config:
+      project_id: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset_id: "analytics"
+      table_id: "recent_orders"
+      mode: "replace"
+```
+
+### Plugin Features for Databases
+
+- **Auto-Discovery**: Database components are automatically loaded from `dft/sources/` and `dft/endpoints/`
+- **Connection Reuse**: Use project-level connection configurations
+- **Error Handling**: Built-in connection testing and error management
+- **Type Safety**: Leverage pandas and Arrow for consistent data types
+- **Performance**: Optimize for specific database characteristics
+- **Security**: Environment variable support for credentials
+
+### Environment Variables for Custom Components
+
+```bash
+# .env
+# Snowflake
+SNOWFLAKE_ACCOUNT=abc12345.snowflakecomputing.com
+SNOWFLAKE_USER=analyst
+SNOWFLAKE_PASSWORD=secure_password
+
+# BigQuery  
+GCP_PROJECT_ID=my-analytics-project
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+
+# Other databases
+MONGODB_CONNECTION_STRING=mongodb://user:pass@host:port/db
+REDIS_URL=redis://localhost:6379/0
+```

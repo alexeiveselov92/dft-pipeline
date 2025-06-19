@@ -5,6 +5,7 @@ Flexible ETL pipeline framework designed for data analysts and engineers. Build,
 ## ✨ Key Features
 
 - **🔧 Component-Based**: Modular sources, processors, and endpoints
+- **🔌 Plugin System**: Add custom components directly to your project
 - **📋 YAML Configuration**: Simple, readable pipeline definitions
 - **🔗 Dependency Management**: Automatic pipeline ordering and validation
 - **📊 Interactive Documentation**: Web-based pipeline exploration with component library
@@ -49,6 +50,9 @@ dft components list
 
 # Run a simple pipeline
 dft run --select simple_csv_example
+
+# Try the custom components example  
+dft run --select custom_example_pipeline
 ```
 
 ## 📦 Component Library
@@ -316,20 +320,105 @@ variables:
   end_date: "{{ yesterday() }}"
 ```
 
-### Custom Processors
+### Custom Components Plugin System
 
-Extend DFT with custom processing logic:
+DFT supports adding custom components directly to your project, similar to dbt macros. When you run `dft init`, a complete plugin structure is created:
+
+```
+my_project/
+├── dft/                    # Custom components directory
+│   ├── sources/           # Custom data sources
+│   ├── processors/        # Custom data processors  
+│   └── endpoints/         # Custom data endpoints
+└── pipelines/
+    └── custom_example_pipeline.yml  # Example using custom components
+```
+
+#### Creating Custom Components
+
+**1. Custom Source Example:**
 
 ```python
+# dft/sources/api_source.py
+from typing import Any, Dict, Optional
+from dft.core.base import DataSource
+from dft.core.data_packet import DataPacket
+
+class ApiSource(DataSource):
+    """Custom API data source"""
+    
+    def extract(self, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
+        api_url = self.get_config('api_url')
+        # Your API extraction logic
+        return DataPacket(data=data, metadata={})
+    
+    def test_connection(self) -> bool:
+        return True
+```
+
+**2. Custom Processor Example:**
+
+```python
+# dft/processors/data_cleaner.py
 from dft.core.base import DataProcessor
 
-class CustomTransformer(DataProcessor):
-    """Custom data transformation processor"""
+class DataCleaner(DataProcessor):
+    """Custom data cleaning processor"""
     
     def process(self, packet, variables=None):
-        # Your custom logic here
-        return transformed_packet
+        # Your cleaning logic
+        cleaned_data = self.clean_data(packet.data)
+        return DataPacket(data=cleaned_data, metadata=packet.metadata)
 ```
+
+**3. Custom Endpoint Example:**
+
+```python  
+# dft/endpoints/webhook.py
+from dft.core.base import DataEndpoint
+
+class WebhookEndpoint(DataEndpoint):
+    """Custom webhook endpoint"""
+    
+    def load(self, packet, variables=None) -> bool:
+        webhook_url = self.get_config('webhook_url')
+        # Your webhook logic
+        return True
+```
+
+#### Using Custom Components
+
+Components are automatically discovered and can be used by their snake_case name:
+
+```yaml
+# pipelines/my_pipeline.yml
+steps:
+  - id: fetch_data
+    type: source
+    source_type: api  # Uses ApiSource class
+    config:
+      api_url: "https://api.example.com/data"
+  
+  - id: clean_data  
+    type: processor
+    processor_type: data_cleaner  # Uses DataCleaner class
+    depends_on: [fetch_data]
+    
+  - id: send_webhook
+    type: endpoint  
+    endpoint_type: webhook  # Uses WebhookEndpoint class
+    depends_on: [clean_data]
+    config:
+      webhook_url: "https://hooks.slack.com/..."
+```
+
+#### Plugin Features
+
+- **Auto-Discovery**: Components are automatically loaded from `dft/` directories
+- **Snake Case Naming**: `MyCustomSource` → `my_custom` in pipelines
+- **No Registration**: Just add `.py` files and they become available
+- **Examples Included**: Working examples created with every `dft init`
+- **Flexible**: Supports both pandas and plain Python data structures
 
 ## 📁 Project Structure
 
@@ -340,7 +429,18 @@ my_project/
 ├── pipelines/               # Pipeline definitions
 │   ├── ingestion.yml
 │   ├── analytics.yml
-│   └── reporting.yml
+│   ├── reporting.yml
+│   └── custom_example_pipeline.yml  # Example with custom components
+├── dft/                     # Custom components (auto-created)
+│   ├── sources/            # Custom data sources
+│   │   ├── __init__.py
+│   │   └── my_custom_source.py     # Example custom source
+│   ├── processors/         # Custom data processors
+│   │   ├── __init__.py
+│   │   └── my_custom_processor.py  # Example custom processor
+│   └── endpoints/          # Custom data endpoints
+│       ├── __init__.py
+│       └── my_custom_endpoint.py   # Example custom endpoint
 ├── data/                    # Input data files
 ├── output/                  # Generated outputs
 └── .dft/                    # DFT metadata
@@ -363,3 +463,5 @@ MIT License - see LICENSE file for details.
 ---
 
 **Get started with the example project**: `cd example_project && dft docs --serve`
+
+**Try the plugin system**: `dft init my_project && cd my_project && dft run --select custom_example_pipeline`

@@ -5,6 +5,7 @@ DFT supports inter-pipeline dependencies similar to dbt, allowing you to build c
 ## Table of Contents
 
 - [Basic Concepts](#basic-concepts)
+- [Project Structure](#project-structure)
 - [Defining Dependencies](#defining-dependencies)
 - [Execution Order](#execution-order)
 - [Selection Syntax](#selection-syntax)
@@ -37,6 +38,80 @@ steps:
 # Pipeline dependencies (between pipelines)
 pipeline_name: my_pipeline
 depends_on: [other_pipeline]  # Pipeline dependency
+```
+
+## Project Structure
+
+When you create a new DFT project with `dft init`, you get a complete structure that supports both built-in and custom components:
+
+```
+my_project/
+├── dft_project.yml              # Project configuration
+├── .env                         # Environment variables
+├── pipelines/                   # Pipeline definitions
+│   ├── base_data_pipeline.yml   # Base data extraction
+│   ├── analytics_pipeline.yml   # Analytics processing
+│   ├── reporting_pipeline.yml   # Final reporting
+│   └── custom_example_pipeline.yml  # Example using custom components
+├── dft/                         # Custom components (plugin system)
+│   ├── sources/                # Custom data sources
+│   │   ├── __init__.py
+│   │   └── my_custom_source.py # Example: API source, Snowflake, etc.
+│   ├── processors/             # Custom data processors
+│   │   ├── __init__.py
+│   │   └── my_custom_processor.py  # Example: ML models, transformations
+│   └── endpoints/              # Custom data endpoints
+│       ├── __init__.py
+│       └── my_custom_endpoint.py   # Example: webhooks, external APIs
+├── data/                        # Input data files
+├── output/                      # Generated outputs
+└── .dft/                        # DFT metadata
+    ├── docs/                    # Generated documentation
+    ├── state/                   # Pipeline state files
+    └── logs/                    # Execution logs
+```
+
+### Plugin System Integration
+
+Custom components in the `dft/` directory are automatically discovered and can be used in dependency chains:
+
+```yaml
+# pipelines/custom_data_flow.yml
+pipeline_name: custom_data_flow
+depends_on: [base_data_pipeline]  # Standard dependency
+
+steps:
+  - id: fetch_external_data
+    type: source
+    source_type: my_api  # Custom source from dft/sources/my_api_source.py
+    config:
+      api_url: "https://api.example.com/data"
+      
+  - id: custom_processing
+    type: processor  
+    processor_type: my_transformer  # Custom processor from dft/processors/
+    depends_on: [fetch_external_data]
+    
+  - id: send_to_webhook
+    type: endpoint
+    endpoint_type: my_webhook  # Custom endpoint from dft/endpoints/
+    depends_on: [custom_processing]
+    config:
+      webhook_url: "https://hooks.slack.com/services/..."
+
+# This pipeline can also be a dependency for other pipelines
+```
+
+```yaml
+# pipelines/final_report.yml  
+pipeline_name: final_report
+depends_on: [custom_data_flow, analytics_pipeline]  # Depends on custom pipeline
+
+steps:
+  - id: combine_results
+    type: processor
+    processor_type: validator
+    # ... config
 ```
 
 ## Defining Dependencies
