@@ -88,6 +88,33 @@ steps:
         
         (project_path / pipelines_dir / "example_pipeline.yml").write_text(example_pipeline)
         
+        # Create example pipeline with custom components
+        custom_pipeline = f"""# Example pipeline using custom components
+pipeline_name: custom_example_pipeline
+tags: [example, custom]
+
+steps:
+  - id: generate_data
+    type: source
+    source_type: my_custom  # This will use MyCustomSource class
+    config: {{}}
+  
+  - id: process_data
+    type: processor
+    processor_type: my_custom  # This will use MyCustomProcessor class
+    depends_on: [generate_data]
+    config: {{}}
+  
+  - id: save_results
+    type: endpoint
+    endpoint_type: my_custom  # This will use MyCustomEndpoint class
+    depends_on: [process_data]
+    config:
+      output_path: "output/custom_processed_data.txt"
+"""
+        
+        (project_path / pipelines_dir / "custom_example_pipeline.yml").write_text(custom_pipeline)
+        
         # Create .env template
         env_template = """# Environment variables for DFT project
 # Copy this file to .env and fill in your values
@@ -108,6 +135,135 @@ API_KEY=your_api_key_here
         
         # Create sample data directory
         (project_path / "data").mkdir()
+        
+        # Create custom components directories
+        (project_path / "dft").mkdir()
+        (project_path / "dft" / "sources").mkdir()
+        (project_path / "dft" / "processors").mkdir()
+        (project_path / "dft" / "endpoints").mkdir()
+        
+        # Create __init__.py files for custom components
+        (project_path / "dft" / "__init__.py").write_text('"""Custom DFT components"""')
+        (project_path / "dft" / "sources" / "__init__.py").write_text('"""Custom data sources"""')
+        (project_path / "dft" / "processors" / "__init__.py").write_text('"""Custom data processors"""')
+        (project_path / "dft" / "endpoints" / "__init__.py").write_text('"""Custom data endpoints"""')
+        
+        # Create example custom components
+        example_source = '''"""Example custom data source"""
+
+from typing import Any, Dict, Optional
+from dft.core.base import DataSource
+from dft.core.data_packet import DataPacket
+
+
+class MyCustomSource(DataSource):
+    """Example custom data source that generates sample data"""
+    
+    def extract(self, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
+        """Extract sample data"""
+        # Example: generate sample data with pandas fallback
+        try:
+            import pandas as pd
+            data = {
+                'id': [1, 2, 3, 4, 5],
+                'name': ['Alice', 'Bob', 'Charlie', 'David', 'Eve'],
+                'value': [10, 20, 30, 40, 50]
+            }
+            df = pd.DataFrame(data)
+            timestamp = pd.Timestamp.now()
+        except ImportError:
+            # Fallback if pandas not available
+            data = [
+                {'id': 1, 'name': 'Alice', 'value': 10},
+                {'id': 2, 'name': 'Bob', 'value': 20},
+                {'id': 3, 'name': 'Charlie', 'value': 30},
+                {'id': 4, 'name': 'David', 'value': 40},
+                {'id': 5, 'name': 'Eve', 'value': 50}
+            ]
+            df = data  # Use list of dicts as fallback
+            from datetime import datetime
+            timestamp = datetime.now()
+        
+        return DataPacket(
+            data=df,
+            metadata={
+                'source': 'MyCustomSource',
+                'row_count': len(df) if hasattr(df, '__len__') else 5,
+                'generated_at': timestamp
+            }
+        )
+    
+    def test_connection(self) -> bool:
+        """Test connection (always returns True for this example)"""
+        return True
+'''
+        
+        example_processor = '''"""Example custom data processor"""
+
+from typing import Any, Dict, Optional
+import pandas as pd
+from dft.core.base import DataProcessor
+from dft.core.data_packet import DataPacket
+
+
+class MyCustomProcessor(DataProcessor):
+    """Example custom processor that doubles values"""
+    
+    def process(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
+        """Process data by doubling the 'value' column"""
+        df = packet.data.copy()
+        
+        # Example processing: double the value column if it exists
+        if 'value' in df.columns:
+            df['value'] = df['value'] * 2
+            df['processed'] = True
+        
+        return DataPacket(
+            data=df,
+            metadata={
+                **packet.metadata,
+                'processor': 'MyCustomProcessor',
+                'processed_at': pd.Timestamp.now()
+            }
+        )
+'''
+        
+        example_endpoint = '''"""Example custom data endpoint"""
+
+from typing import Any, Dict, Optional
+import pandas as pd
+from dft.core.base import DataEndpoint
+from dft.core.data_packet import DataPacket
+
+
+class MyCustomEndpoint(DataEndpoint):
+    """Example custom endpoint that prints data info"""
+    
+    def load(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> bool:
+        """Load data by printing information about it"""
+        df = packet.data
+        
+        print(f"Custom endpoint received data:")
+        print(f"  Shape: {df.shape}")
+        print(f"  Columns: {list(df.columns)}")
+        print(f"  Sample data:")
+        print(df.head().to_string(index=False))
+        
+        # You could save to file, send to API, etc.
+        output_path = self.get_config('output_path', 'output/custom_data.txt')
+        with open(output_path, 'w') as f:
+            f.write(f"Data processed at {pd.Timestamp.now()}\\n")
+            f.write(f"Shape: {df.shape}\\n")
+            f.write(f"Columns: {list(df.columns)}\\n")
+            f.write("\\nData:\\n")
+            f.write(df.to_string(index=False))
+        
+        return True
+'''
+        
+        (project_path / "dft" / "sources" / "my_custom_source.py").write_text(example_source)
+        (project_path / "dft" / "processors" / "my_custom_processor.py").write_text(example_processor)
+        (project_path / "dft" / "endpoints" / "my_custom_endpoint.py").write_text(example_endpoint)
         
         # Create gitignore - will be updated based on state config
         gitignore = """.dft/logs/
@@ -149,7 +305,12 @@ venv/
         click.echo(f"   {project_name}/")
         click.echo(f"   ├── dft_project.yml")
         click.echo(f"   ├── {pipelines_dir}/")
-        click.echo(f"   │   └── example_pipeline.yml")
+        click.echo(f"   │   ├── example_pipeline.yml")
+        click.echo(f"   │   └── custom_example_pipeline.yml  # Uses custom components")
+        click.echo(f"   ├── dft/                      # Custom components")
+        click.echo(f"   │   ├── sources/              # Custom data sources")
+        click.echo(f"   │   ├── processors/           # Custom processors")
+        click.echo(f"   │   └── endpoints/            # Custom endpoints")
         click.echo(f"   ├── tests/")
         click.echo(f"   ├── data/")
         click.echo(f"   ├── output/")
@@ -161,6 +322,12 @@ venv/
         click.echo(f"1. cd {project_name}")
         click.echo(f"2. cp .env.example .env  # and fill in your credentials")
         click.echo(f"3. dft run --select example_pipeline")
+        click.echo(f"4. dft run --select custom_example_pipeline  # Test custom components")
+        click.echo()
+        click.echo(f"💡 You can now add your own custom components to the dft/ directory!")
+        click.echo(f"   - Sources: dft/sources/")
+        click.echo(f"   - Processors: dft/processors/")
+        click.echo(f"   - Endpoints: dft/endpoints/")
         
     except Exception as e:
         click.echo(f"Error creating project: {e}")

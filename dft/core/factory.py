@@ -1,5 +1,9 @@
 """Component factory for creating sources, processors, and endpoints"""
 
+import os
+import sys
+import importlib.util
+from pathlib import Path
 from typing import Any, Dict
 from .base import DataSource, DataProcessor, DataEndpoint
 from .config import ProjectConfig
@@ -11,6 +15,7 @@ class ComponentFactory:
     def __init__(self, project_config: ProjectConfig):
         self.project_config = project_config
         self._register_built_in_components()
+        self._load_custom_components()
     
     def _register_built_in_components(self) -> None:
         """Register built-in component types"""
@@ -120,3 +125,109 @@ class ComponentFactory:
     def register_endpoint(self, endpoint_type: str, class_path: str) -> None:
         """Register custom endpoint type"""
         self._endpoint_registry[endpoint_type] = class_path
+    
+    def _load_custom_components(self) -> None:
+        """Load custom components from project dft/ directory"""
+        project_root = Path.cwd()
+        custom_dft_dir = project_root / "dft"
+        
+        if not custom_dft_dir.exists():
+            return
+        
+        # Add project root to Python path if not already there
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
+        # Load custom sources
+        self._load_custom_components_from_dir(
+            custom_dft_dir / "sources", 
+            "source", 
+            self._source_registry
+        )
+        
+        # Load custom processors
+        self._load_custom_components_from_dir(
+            custom_dft_dir / "processors", 
+            "processor", 
+            self._processor_registry
+        )
+        
+        # Load custom endpoints
+        self._load_custom_components_from_dir(
+            custom_dft_dir / "endpoints", 
+            "endpoint", 
+            self._endpoint_registry
+        )
+    
+    def _load_custom_components_from_dir(self, components_dir: Path, component_type: str, registry: Dict[str, str]) -> None:
+        """Load custom components from a specific directory"""
+        if not components_dir.exists():
+            return
+        
+        for py_file in components_dir.glob("*.py"):
+            if py_file.name == "__init__.py":
+                continue
+            
+            module_name = py_file.stem
+            try:
+                # Load the module
+                spec = importlib.util.spec_from_file_location(
+                    f"dft.{component_type}s.{module_name}", 
+                    py_file
+                )
+                if spec and spec.loader:
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    
+                    # Look for classes that inherit from the appropriate base class
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name)
+                        if (isinstance(attr, type) and 
+                            attr.__name__ != f"Data{component_type.capitalize()}" and
+                            self._is_component_class(attr, component_type)):
+                            
+                            # Register the component with a snake_case name
+                            component_name = self._class_name_to_component_name(attr.__name__)
+                            class_path = f"dft.{component_type}s.{module_name}.{attr.__name__}"
+                            registry[component_name] = class_path
+                            
+            except Exception as e:
+                # Log warning but don't fail the entire loading process
+                print(f"Warning: Could not load custom {component_type} from {py_file}: {e}")
+    
+    def _is_component_class(self, cls, component_type: str) -> bool:
+        """Check if a class is a valid component class"""
+        from .base import DataSource, DataProcessor, DataEndpoint
+        
+        base_classes = {
+            "source": DataSource,
+            "processor": DataProcessor, 
+            "endpoint": DataEndpoint
+        }
+        
+        base_class = base_classes.get(component_type)
+        if not base_class:
+            return False
+        
+        try:
+            return issubclass(cls, base_class) and cls != base_class
+        except TypeError:
+            return False
+    
+    def _class_name_to_component_name(self, class_name: str) -> str:
+        """Convert CamelCase class name to snake_case component name"""
+        # Remove common suffixes
+        suffixes = ["Source", "Processor", "Endpoint"]
+        for suffix in suffixes:
+            if class_name.endswith(suffix):
+                class_name = class_name[:-len(suffix)]
+                break
+        
+        # Convert to snake_case
+        result = ""
+        for i, char in enumerate(class_name):
+            if i > 0 and char.isupper():
+                result += "_"
+            result += char.lower()
+        
+        return result
