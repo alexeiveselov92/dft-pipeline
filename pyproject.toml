@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dft-pipeline"
-version = "0.1.8"
+version = "0.1.9"
 description = "Data Flow Tools - flexible ETL pipeline framework"
 authors = [{name = "Alexei Veselov", email = "alexei.veselov92@gmail.com"}]
 license = {text = "MIT"}
