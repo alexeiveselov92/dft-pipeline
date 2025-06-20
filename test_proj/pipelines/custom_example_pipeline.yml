@@ -1,0 +1,22 @@
+# Example pipeline using custom components
+pipeline_name: custom_example_pipeline
+tags: [example, custom]
+
+steps:
+  - id: generate_data
+    type: source
+    source_type: my_custom  # This will use MyCustomSource class
+    config: {}
+  
+  - id: process_data
+    type: processor
+    processor_type: my_custom  # This will use MyCustomProcessor class
+    depends_on: [generate_data]
+    config: {}
+  
+  - id: save_results
+    type: endpoint
+    endpoint_type: my_custom  # This will use MyCustomEndpoint class
+    depends_on: [process_data]
+    config:
+      output_path: "output/custom_processed_data.txt"

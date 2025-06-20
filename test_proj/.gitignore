@@ -1,0 +1,13 @@
+.dft/logs/
+.dft/docs/
+.env
+output/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.dft/state/

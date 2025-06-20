@@ -33,10 +33,11 @@ example_project/
 ### 1. Install DFT
 
 ```bash
-# From the main DFT directory
-cd ..
-pip install -e .
-cd example_project
+# Install from PyPI
+pip install dft-pipeline
+
+# Or from source (development)
+# cd .. && pip install -e . && cd example_project
 ```
 
 ### 2. Run a Simple Example

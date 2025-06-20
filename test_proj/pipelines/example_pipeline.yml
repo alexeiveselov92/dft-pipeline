@@ -1,0 +1,25 @@
+# Example pipeline configuration
+pipeline_name: example_pipeline
+tags: [example, daily]
+
+steps:
+  - id: extract_data
+    type: source
+    source_type: csv
+    config:
+      file_path: "data/sample.csv"
+  
+  - id: validate_data
+    type: processor
+    processor_type: validator
+    depends_on: [extract_data]
+    config:
+      required_columns: [id, name]
+      row_count_min: 1
+  
+  - id: save_results
+    type: endpoint
+    endpoint_type: csv
+    depends_on: [validate_data]
+    config:
+      file_path: "output/processed_{{ today() }}.csv"

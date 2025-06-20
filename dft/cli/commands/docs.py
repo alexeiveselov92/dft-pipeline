@@ -39,20 +39,50 @@ def generate_docs(serve: bool) -> None:
             import http.server
             import socketserver
             import os
+            import socket
             
             os.chdir(docs_dir)
             
+            # Find available port starting from 8080
             PORT = 8080
+            while PORT < 8090:
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.bind(('', PORT))
+                        break
+                except OSError:
+                    PORT += 1
+            
+            if PORT >= 8090:
+                click.echo("❌ No available ports found (8080-8089)")
+                return
+            
             Handler = http.server.SimpleHTTPRequestHandler
             
-            with socketserver.TCPServer(("", PORT), Handler) as httpd:
-                click.echo(f"📖 Documentation available at: http://localhost:{PORT}")
-                webbrowser.open(f"http://localhost:{PORT}")
+            # Create custom handler with logging
+            class LoggingHandler(http.server.SimpleHTTPRequestHandler):
+                def log_message(self, format, *args):
+                    click.echo(f"[{self.address_string()}] {format % args}")
                 
-                try:
-                    httpd.serve_forever()
-                except KeyboardInterrupt:
-                    click.echo("\n📚 Documentation server stopped")
+                def do_GET(self):
+                    click.echo(f"GET request for: {self.path}")
+                    return super().do_GET()
+            
+            try:
+                with socketserver.TCPServer(("", PORT), LoggingHandler) as httpd:
+                    click.echo(f"📖 Documentation available at: http://localhost:{PORT}")
+                    click.echo("📝 Server logs:")
+                    click.echo("Press Ctrl+C to stop the server")
+                    webbrowser.open(f"http://localhost:{PORT}")
+                    
+                    try:
+                        httpd.serve_forever()
+                    except KeyboardInterrupt:
+                        click.echo("\n📚 Documentation server stopped")
+            except Exception as e:
+                click.echo(f"❌ Failed to start server: {e}")
+                import traceback
+                traceback.print_exc()
         
     except Exception as e:
         click.echo(f"Error generating docs: {e}")
@@ -608,29 +638,20 @@ def generate_html_docs(project_config, pipelines) -> str:
         }
         
         // Config toggle functionality
-        function toggleConfig(stepId) {{
+        function toggleConfig(stepId) {
             const content = document.getElementById('config-' + stepId);
             const btn = event.target;
             
-            if (content.classList.contains('active')) {{
+            if (content.classList.contains('active')) {
                 content.classList.remove('active');
                 btn.textContent = '⚙️ Show Config';
-            }} else {{
+            } else {
                 content.classList.add('active');
                 btn.textContent = '⚙️ Hide Config';
-            }}
-        }}
+            }
+        }
         
-        // Component details toggle functionality
-        function toggleComponentDetails(componentName) {{
-            const details = document.getElementById('details-' + componentName);
-            
-            if (details.classList.contains('active')) {{
-                details.classList.remove('active');
-            }} else {{
-                details.classList.add('active');
-            }}
-        }}
+        // Simplified - no component toggles
     </script>
 </body>
 </html>
@@ -723,7 +744,7 @@ def generate_components_html(components_data):
     html = """
             <div class="graph-container">
                 <h2>📦 Available Components</h2>
-                <p>Click on any component to view its configuration details and YAML examples.</p>
+                <p>Available components for building pipelines.</p>
     """
     
     for comp_type, items in sorted(by_type.items()):
@@ -733,30 +754,19 @@ def generate_components_html(components_data):
         
         html += f"""
                 <h3>{icon} {comp_type.title()}s</h3>
-                <div class="components-grid">
+                <div style="margin-bottom: 2rem;">
         """
         
-        # Component cards
+        # Component cards - simplified
         for name, info in sorted(items):
             description = info.get('description', 'No description available')
-            docstring = info.get('docstring', '')
-            
-            # Extract config info
-            config_info = extract_config_summary(docstring)
+            module = info.get('module', '')
             
             html += f"""
-                    <div class="component-card" onclick="toggleComponentDetails('{name}')">
-                        <h4>{name}</h4>
-                        <p class="component-description">{description}</p>
-                        <small class="component-module">{info.get('module', '')}</small>
-                        <div class="component-details" id="details-{name}">
-                            <div class="config-summary">
-                                {config_info}
-                            </div>
-                            <div class="yaml-examples">
-                                {extract_yaml_examples_html(docstring)}
-                            </div>
-                        </div>
+                    <div style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin: 0.5rem 0;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #2d3748;">{name}</h4>
+                        <p style="margin: 0 0 0.5rem 0; color: #4a5568;">{description}</p>
+                        <small style="color: #718096;">{module}</small>
                     </div>
             """
         

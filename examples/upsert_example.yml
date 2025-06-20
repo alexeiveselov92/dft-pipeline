@@ -1,24 +1,45 @@
 name: "upsert_example"
-description: "Example pipeline demonstrating upsert functionality"
+description: "Example pipeline demonstrating upsert functionality with named connections"
 
-sources:
-  - name: "sample_data"
-    type: "csv"
-    config:
-      path: "./sample_data.csv"
+# Named database connections
+connections:
+  mysql_main:
+    type: mysql
+    host: localhost
+    database: test_db
+    user: user
+    password: "${MYSQL_PASSWORD}"
+  
+  postgres_analytics:
+    type: postgresql
+    host: localhost
+    database: analytics_db
+    user: analyst
+    password: "${POSTGRES_PASSWORD}"
+  
+  clickhouse_events:
+    type: clickhouse
+    host: localhost
+    database: events_db
 
-endpoints:
-  # MySQL upsert example
-  - name: "mysql_upsert"
-    type: "mysql"
+steps:
+  # Data source
+  - id: load_sample_data
+    type: source
+    source_type: csv
     config:
-      host: "localhost"
-      database: "test_db"
-      user: "user"
-      password: "password"
-      table: "users"
-      mode: "upsert"
-      upsert_keys: ["id"]  # Primary key for conflict resolution
+      file_path: "./sample_data.csv"
+
+  # MySQL upsert endpoint
+  - id: save_to_mysql
+    type: endpoint
+    endpoint_type: mysql
+    connection: mysql_main
+    depends_on: [load_sample_data]
+    config:
+      table: users
+      mode: upsert
+      upsert_keys: [id]  # Primary key for conflict resolution
       auto_create: true
       schema:
         id: "INT PRIMARY KEY"
@@ -26,17 +47,16 @@ endpoints:
         email: "VARCHAR(100)"
         updated_at: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
 
-  # PostgreSQL upsert example with composite key
-  - name: "postgres_upsert"
-    type: "postgresql"
+  # PostgreSQL upsert endpoint with composite key
+  - id: save_to_postgres
+    type: endpoint
+    endpoint_type: postgresql
+    connection: postgres_analytics
+    depends_on: [load_sample_data]
     config:
-      host: "localhost"
-      database: "test_db"
-      user: "user"
-      password: "password"
-      table: "user_sessions"
-      mode: "upsert"
-      upsert_keys: ["user_id", "session_date"]  # Composite unique key
+      table: user_sessions
+      mode: upsert
+      upsert_keys: [user_id, session_date]  # Composite unique key
       auto_create: true
       schema:
         user_id: "INTEGER"
@@ -44,15 +64,16 @@ endpoints:
         session_count: "INTEGER"
         last_activity: "TIMESTAMP"
 
-  # ClickHouse upsert example
-  - name: "clickhouse_upsert"
-    type: "clickhouse"
+  # ClickHouse upsert endpoint
+  - id: save_to_clickhouse
+    type: endpoint
+    endpoint_type: clickhouse
+    connection: clickhouse_events
+    depends_on: [load_sample_data]
     config:
-      host: "localhost"
-      database: "analytics"
-      table: "events"
-      mode: "upsert"
-      upsert_keys: ["event_id"]  # Unique event identifier
+      table: events
+      mode: upsert
+      upsert_keys: [event_id]  # Unique event identifier
       auto_create: true
       engine: "MergeTree()"
       order_by: "event_id"
@@ -62,9 +83,3 @@ endpoints:
         event_type: "String"
         timestamp: "DateTime"
         properties: "String"
-
-pipelines:
-  - name: "upsert_pipeline"
-    source: "sample_data"
-    processors: []
-    endpoints: ["mysql_upsert", "postgres_upsert", "clickhouse_upsert"]

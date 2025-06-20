@@ -1,5 +1,8 @@
 # DFT - Data Flow Tools
 
+[![PyPI version](https://badge.fury.io/py/dft-pipeline.svg)](https://badge.fury.io/py/dft-pipeline)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+
 Flexible ETL pipeline framework designed for data analysts and engineers. Build, orchestrate, and monitor data pipelines with YAML configurations.
 
 ## ✨ Key Features
@@ -17,6 +20,15 @@ Flexible ETL pipeline framework designed for data analysts and engineers. Build,
 ## 🚀 Quick Start
 
 ### 1. Installation
+
+#### Option A: Install from PyPI (Recommended)
+
+```bash
+# Install directly from PyPI
+pip install dft-pipeline
+```
+
+#### Option B: Install from Source (For Development)
 
 ```bash
 # Clone repository
@@ -38,8 +50,9 @@ cd my_analytics_project
 ### 3. Explore Examples
 
 ```bash
-# Try the example project
-cd example_project
+# Initialize a new project with examples
+dft init my_analytics_project
+cd my_analytics_project
 
 # View interactive documentation
 dft docs --serve
@@ -48,7 +61,7 @@ dft docs --serve
 # Discover available components
 dft components list
 
-# Run a simple pipeline
+# Run a simple pipeline (uses sample data)
 dft run --select simple_csv_example
 
 # Try the custom components example  
@@ -154,38 +167,46 @@ Intelligent insert-or-update operations:
 ### Basic Pipeline
 
 ```yaml
-name: simple_etl
+pipeline_name: simple_etl
 description: Extract, validate, and load user data
 
-sources:
-  - name: user_data
-    type: csv
+connections:
+  analytics_db:
+    type: postgresql
+    host: analytics.company.com
+    database: warehouse
+    user: analyst
+    password: "${POSTGRES_PASSWORD}"
+
+steps:
+  - id: load_user_data
+    type: source
+    source_type: csv
     config:
       file_path: "data/users.csv"
 
-endpoints:
-  - name: clean_users
-    type: postgresql
+  - id: validate_users
+    type: processor
+    processor_type: validator
+    depends_on: [load_user_data]
+    config:
+      required_columns: [id, email, created_at]
+      row_count_min: 1
+
+  - id: save_clean_users
+    type: endpoint
+    endpoint_type: postgresql
     connection: analytics_db
+    depends_on: [validate_users]
     config:
       table: users_clean
       mode: replace
-
-pipelines:
-  - name: process_users
-    source: user_data
-    processors:
-      - type: validator
-        config:
-          required_columns: [id, email, created_at]
-          row_count_min: 1
-    endpoints: [clean_users]
 ```
 
 ### Advanced Pipeline with Dependencies
 
 ```yaml
-name: customer_analytics
+pipeline_name: customer_analytics
 tags: [analytics, daily]
 depends_on: [data_ingestion]  # Run after data_ingestion pipeline
 
@@ -193,17 +214,49 @@ variables:
   analysis_date: "{{ yesterday() }}"
   min_transaction_amount: 10.00
 
-pipelines:
-  - name: customer_metrics
-    source: transaction_data
-    processors:
-      - type: validator
-        config:
-          checks:
-            - column: amount
-              min_value: "{{ var('min_transaction_amount') }}"
-              not_null: true
-    endpoints: [metrics_warehouse]
+connections:
+  transaction_db:
+    type: postgresql
+    host: transactions.company.com
+    database: sales
+    user: analyst
+    password: "${POSTGRES_PASSWORD}"
+    
+  warehouse_db:
+    type: postgresql
+    host: warehouse.company.com
+    database: analytics
+    user: writer
+    password: "${WAREHOUSE_PASSWORD}"
+
+steps:
+  - id: extract_transaction_data
+    type: source
+    source_type: postgresql
+    connection: transaction_db
+    config:
+      query: |
+        SELECT * FROM transactions 
+        WHERE date = '{{ var("analysis_date") }}'
+
+  - id: validate_metrics
+    type: processor
+    processor_type: validator
+    depends_on: [extract_transaction_data]
+    config:
+      checks:
+        - column: amount
+          min_value: "{{ var('min_transaction_amount') }}"
+          not_null: true
+
+  - id: save_to_warehouse
+    type: endpoint
+    endpoint_type: postgresql
+    connection: warehouse_db
+    depends_on: [validate_metrics]
+    config:
+      table: metrics_warehouse
+      mode: append
 ```
 
 ## 🔄 Pipeline Execution
@@ -462,6 +515,11 @@ MIT License - see LICENSE file for details.
 
 ---
 
-**Get started with the example project**: `cd example_project && dft docs --serve`
+**Get started in 30 seconds**: 
+```bash
+pip install dft-pipeline
+dft init my_project && cd my_project
+dft docs --serve  # Interactive documentation
+```
 
-**Try the plugin system**: `dft init my_project && cd my_project && dft run --select custom_example_pipeline`
+**Try the plugin system**: `dft run --select custom_example_pipeline`

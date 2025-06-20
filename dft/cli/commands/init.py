@@ -133,8 +133,23 @@ API_KEY=your_api_key_here
         
         (project_path / ".env.example").write_text(env_template)
         
-        # Create sample data directory
+        # Create sample data directory and sample CSV file
         (project_path / "data").mkdir()
+        
+        # Create sample CSV data
+        sample_csv_data = """id,name,value,category,date
+1,Alice,100,A,2024-01-01
+2,Bob,150,B,2024-01-02
+3,Charlie,200,A,2024-01-03
+4,David,120,C,2024-01-04
+5,Eve,180,B,2024-01-05
+6,Frank,90,A,2024-01-06
+7,Grace,220,C,2024-01-07
+8,Henry,160,B,2024-01-08
+9,Ivy,140,A,2024-01-09
+10,Jack,190,C,2024-01-10"""
+        
+        (project_path / "data" / "sample.csv").write_text(sample_csv_data)
         
         # Create custom components directories
         (project_path / "dft").mkdir()
@@ -201,7 +216,7 @@ class MyCustomSource(DataSource):
         example_processor = '''"""Example custom data processor"""
 
 from typing import Any, Dict, Optional
-import pandas as pd
+from datetime import datetime
 from dft.core.base import DataProcessor
 from dft.core.data_packet import DataPacket
 
@@ -211,19 +226,36 @@ class MyCustomProcessor(DataProcessor):
     
     def process(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> DataPacket:
         """Process data by doubling the 'value' column"""
-        df = packet.data.copy()
-        
-        # Example processing: double the value column if it exists
-        if 'value' in df.columns:
-            df['value'] = df['value'] * 2
-            df['processed'] = True
+        try:
+            import pandas as pd
+            df = packet.data.copy()
+            
+            # Example processing: double the value column if it exists
+            if 'value' in df.columns:
+                df['value'] = df['value'] * 2
+                df['processed'] = True
+            
+            timestamp = pd.Timestamp.now()
+        except ImportError:
+            # Fallback for non-pandas data
+            if isinstance(packet.data, list):
+                df = []
+                for row in packet.data:
+                    new_row = row.copy()
+                    if 'value' in new_row:
+                        new_row['value'] = new_row['value'] * 2
+                        new_row['processed'] = True
+                    df.append(new_row)
+            else:
+                df = packet.data
+            timestamp = datetime.now()
         
         return DataPacket(
             data=df,
             metadata={
                 **packet.metadata,
                 'processor': 'MyCustomProcessor',
-                'processed_at': pd.Timestamp.now()
+                'processed_at': timestamp
             }
         )
 '''
@@ -231,7 +263,7 @@ class MyCustomProcessor(DataProcessor):
         example_endpoint = '''"""Example custom data endpoint"""
 
 from typing import Any, Dict, Optional
-import pandas as pd
+from datetime import datetime
 from dft.core.base import DataEndpoint
 from dft.core.data_packet import DataPacket
 
@@ -241,22 +273,46 @@ class MyCustomEndpoint(DataEndpoint):
     
     def load(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> bool:
         """Load data by printing information about it"""
-        df = packet.data
+        data = packet.data
         
-        print(f"Custom endpoint received data:")
-        print(f"  Shape: {df.shape}")
-        print(f"  Columns: {list(df.columns)}")
-        print(f"  Sample data:")
-        print(df.head().to_string(index=False))
-        
-        # You could save to file, send to API, etc.
-        output_path = self.get_config('output_path', 'output/custom_data.txt')
-        with open(output_path, 'w') as f:
-            f.write(f"Data processed at {pd.Timestamp.now()}\\n")
-            f.write(f"Shape: {df.shape}\\n")
-            f.write(f"Columns: {list(df.columns)}\\n")
-            f.write("\\nData:\\n")
-            f.write(df.to_string(index=False))
+        try:
+            import pandas as pd
+            print(f"Custom endpoint received data:")
+            print(f"  Shape: {data.shape}")
+            print(f"  Columns: {list(data.columns)}")
+            print(f"  Sample data:")
+            print(data.head().to_string(index=False))
+            
+            # Save to file
+            output_path = self.get_config('output_path', 'output/custom_data.txt')
+            with open(output_path, 'w') as f:
+                f.write(f"Data processed at {pd.Timestamp.now()}\\n")
+                f.write(f"Shape: {data.shape}\\n")
+                f.write(f"Columns: {list(data.columns)}\\n")
+                f.write("\\nData:\\n")
+                f.write(data.to_string(index=False))
+            
+        except ImportError:
+            # Fallback for non-pandas data
+            print(f"Custom endpoint received data:")
+            if isinstance(data, list):
+                print(f"  Rows: {len(data)}")
+                if data:
+                    print(f"  Columns: {list(data[0].keys()) if isinstance(data[0], dict) else 'N/A'}")
+                    print(f"  Sample data: {data[:3]}")
+            else:
+                print(f"  Data type: {type(data)}")
+                print(f"  Data: {data}")
+            
+            # Save to file
+            output_path = self.get_config('output_path', 'output/custom_data.txt')
+            with open(output_path, 'w') as f:
+                f.write(f"Data processed at {datetime.now()}\\n")
+                if isinstance(data, list):
+                    f.write(f"Rows: {len(data)}\\n")
+                    f.write(f"Sample data: {data[:5]}\\n")
+                else:
+                    f.write(f"Data: {data}\\n")
         
         return True
 '''
@@ -313,6 +369,7 @@ venv/
         click.echo(f"   │   └── endpoints/            # Custom endpoints")
         click.echo(f"   ├── tests/")
         click.echo(f"   ├── data/")
+        click.echo(f"   │   └── sample.csv            # Sample data for testing")
         click.echo(f"   ├── output/")
         click.echo(f"   ├── .dft/")
         click.echo(f"   ├── .env.example")

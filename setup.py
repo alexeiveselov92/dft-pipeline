@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="dft-pipeline",
-    version="0.1.0",
+    version="0.1.8",
     author="Alexei Veselov",
     author_email="alexei.veselov92@gmail.com",
     description="Data Flow Tools - flexible ETL pipeline framework",
@@ -23,6 +23,13 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     python_requires=">=3.9",
+    keywords=["etl", "data-pipeline", "data-processing", "yaml", "analytics"],
+    url="https://github.com/alexeiveselov92/dft",
+    project_urls={
+        "Homepage": "https://github.com/alexeiveselov92/dft",
+        "Repository": "https://github.com/alexeiveselov92/dft",
+        "Issues": "https://github.com/alexeiveselov92/dft/issues",
+    },
     install_requires=[
         "click>=8.0.0",
         "pyyaml>=6.0",

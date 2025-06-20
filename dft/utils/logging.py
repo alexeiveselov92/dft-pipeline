@@ -65,8 +65,12 @@ class PipelineLogger:
     
     def __init__(self, pipeline_name: str):
         self.pipeline_name = pipeline_name
-        self.logger = logging.getLogger(f"dft.pipeline.{pipeline_name}")
-        self.console = Console()
+        # Disable logger completely to avoid any conflicts
+        self.logger = None
+        
+        # Create completely isolated console for clean pipeline output
+        import sys
+        self.console = Console(file=sys.stdout, stderr=False, force_terminal=True, legacy_windows=False)
         self.executions = []
         
         # Track steps for progress
@@ -96,9 +100,7 @@ class PipelineLogger:
         else:
             self.console.print(f"\n[bold red]Completed with {self.total_steps - self.completed_steps} error(s)[/bold red]")
         
-        # Standard logging for file
-        status = "SUCCESS" if success else "FAILED"
-        self.logger.info(f"Pipeline '{self.pipeline_name}' completed with status: {status} (execution_id: {execution_id})")
+        # No additional logging to avoid Rich handler conflicts
     
     def log_step_start(self, step_id: str) -> None:
         """Log step start with progress"""
@@ -106,10 +108,10 @@ class PipelineLogger:
         
         # Progress indicator like dbt
         step_num = self.completed_steps + 1
-        self.console.print(f"{step_num:2d} of {self.total_steps:2d} START {step_id}..................................... [RUN]", end="")
+        self.console.print(f"{step_num:2d} of {self.total_steps:2d} START {step_id}..................................... [RUN]", end="", style="")
         
-        # Standard logging for file
-        self.logger.info(f"Step '{step_id}' started")
+        # Standard logging for file only
+        # self.logger.info(f"Step '{step_id}' started")
     
     def log_step_complete(self, step_id: str, success: bool, row_count: int = 0, size_mb: float = 0.0) -> None:
         """Log step completion with metrics and rich formatting"""
@@ -126,25 +128,25 @@ class PipelineLogger:
             metrics_text = f" {', '.join(metrics_parts)}" if metrics_parts else ""
             
             # Complete the line started in log_step_start - like dbt format
-            self.console.print(f" [bold green]OK[/bold green] {step_id}{metrics_text}")
+            self.console.print(f" [bold green]OK[/bold green]{metrics_text}")
         else:
-            self.console.print(f" [bold red]ERROR[/bold red] {step_id}")
+            self.console.print(f" [bold red]ERROR[/bold red]")
         
-        # Standard logging for file
-        status = "SUCCESS" if success else "FAILED"
-        self.logger.info(f"Step '{step_id}' completed with status: {status}, rows: {row_count}, size: {size_mb:.2f}MB")
+        # Standard logging for file only
+        # status = "SUCCESS" if success else "FAILED"
+        # self.logger.info(f"Step '{step_id}' completed with status: {status}, rows: {row_count}, size: {size_mb:.2f}MB")
     
     def log_step_error(self, step_id: str, error: str) -> None:
         """Log step error with rich formatting"""
         self.completed_steps += 1
         
         # Complete the line started in log_step_start with error
-        self.console.print(f" [bold red]ERROR[/bold red] {step_id}")
+        self.console.print(f" [bold red]ERROR[/bold red]")
         self.console.print(f"  {error}")
         
-        # Standard logging for file
-        self.logger.error(f"Step '{step_id}' failed: {error}")
+        # Standard logging for file only
+        # self.logger.error(f"Step '{step_id}' failed: {error}")
     
     def log_metrics(self, step_id: str, metrics: dict) -> None:
         """Log step metrics"""
-        self.logger.info(f"Step '{step_id}' metrics: {metrics}")
+        # self.logger.info(f"Step '{step_id}' metrics: {metrics}")
