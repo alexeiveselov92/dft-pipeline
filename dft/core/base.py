@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
+from datetime import datetime
 from .data_packet import DataPacket
 
 
@@ -53,11 +54,36 @@ class DataEndpoint(ABC):
         self.config = config
         self.name = config.get("name", "unknown")
         self.endpoint_type = config.get("endpoint_type", "unknown")
+        self.event_time_column = config.get("event_time_column")
     
     @abstractmethod
     def load(self, packet: DataPacket, variables: Optional[Dict[str, Any]] = None) -> bool:
         """Load data to endpoint"""
         pass
+    
+    def delete_batch_data(self, batch_start: datetime, batch_end: datetime) -> bool:
+        """Delete data for microbatch window (override in subclasses)"""
+        return True
+    
+    def load_with_microbatch(
+        self, 
+        packet: DataPacket, 
+        variables: Optional[Dict[str, Any]] = None,
+        batch_start: Optional[datetime] = None,
+        batch_end: Optional[datetime] = None
+    ) -> bool:
+        """Load data with microbatch support - deletes old data first"""
+        
+        # If microbatch variables provided and event_time_column configured
+        if (batch_start and batch_end and self.event_time_column and 
+            variables and variables.get('batch_start') and variables.get('batch_end')):
+            
+            # Delete existing data for this batch window
+            if not self.delete_batch_data(batch_start, batch_end):
+                return False
+        
+        # Load new data
+        return self.load(packet, variables)
     
     def get_config(self, key: str, default: Any = None) -> Any:
         """Get configuration value"""

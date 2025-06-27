@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, Optional
 import logging
+from datetime import datetime
 import pyarrow as pa
 
 from ..core.base import DataEndpoint
@@ -150,6 +151,54 @@ class PostgreSQLEndpoint(DataEndpoint):
         
         cursor.execute(create_sql)
         self.logger.info(f"Created PostgreSQL table {table_name} with schema: {columns}")
+    
+    def delete_batch_data(self, batch_start: datetime, batch_end: datetime) -> bool:
+        """Delete data for microbatch window"""
+        
+        if not self.event_time_column:
+            self.logger.warning("No event_time_column configured, skipping batch delete")
+            return True
+        
+        table_name = self.get_config("table")
+        if not table_name:
+            raise ValueError("table is required for PostgreSQL endpoint")
+        
+        try:
+            import psycopg2
+            
+            conn_params = {
+                "host": self.get_config("host", "localhost"),
+                "port": self.get_config("port", 5432),
+                "database": self.get_config("database"),
+                "user": self.get_config("user"),
+                "password": self.get_config("password"),
+            }
+            
+            conn_params = {k: v for k, v in conn_params.items() if v is not None}
+            
+            conn = psycopg2.connect(**conn_params)
+            cur = conn.cursor()
+            
+            # Delete data in batch window
+            delete_sql = f'''
+            DELETE FROM "{table_name}" 
+            WHERE "{self.event_time_column}" >= %s 
+            AND "{self.event_time_column}" < %s
+            '''
+            
+            cur.execute(delete_sql, (batch_start, batch_end))
+            deleted_rows = cur.rowcount
+            conn.commit()
+            
+            cur.close()
+            conn.close()
+            
+            self.logger.info(f"Deleted {deleted_rows} rows from {table_name} for batch window [{batch_start} - {batch_end})")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Failed to delete batch data: {e}")
+            return False
     
     def test_connection(self) -> bool:
         """Test PostgreSQL connection"""

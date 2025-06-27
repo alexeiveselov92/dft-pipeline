@@ -1,0 +1,174 @@
+name: "daily_events_microbatch"
+description: "Process daily events with microbatch strategy"
+
+variables:
+  microbatch:
+    event_time_column: "created_at"
+    batch_size: "day"
+    lookback: 2
+    begin: "2024-01-01T00:00:00"
+
+steps:
+  # Extract events for specific batch window
+  - id: "extract_events"
+    type: "source"
+    source_type: "postgresql"
+    config:
+      query: |
+        SELECT 
+          event_id,
+          user_id,
+          event_type,
+          created_at,
+          data
+        FROM events
+        WHERE created_at >= '{{ batch_start.strftime('%Y-%m-%d %H:%M:%S') }}'
+          AND created_at < '{{ batch_end.strftime('%Y-%m-%d %H:%M:%S') }}'
+      connection: "events_db"
+
+  # Aggregate events by type
+  - id: "aggregate_events"
+    type: "processor"
+    processor_type: "sql"
+    depends_on:
+      - "extract_events"
+    config:
+      query: |
+        SELECT 
+          DATE(created_at) as event_date,
+          event_type,
+          COUNT(*) as event_count,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM input_data
+        GROUP BY DATE(created_at), event_type
+
+  # Load to analytics table with automatic batch delete
+  - id: "load_daily_stats"
+    type: "endpoint"
+    endpoint_type: "postgresql"
+    depends_on:
+      - "aggregate_events"
+    config:
+      table: "daily_event_stats"
+      connection: "analytics_db"
+      event_time_column: "event_date"  # Required for microbatch auto-delete
+      schema:
+        event_date: "DATE"
+        event_type: "VARCHAR(100)"
+        event_count: "INTEGER"
+        unique_users: "INTEGER"
+
+---
+name: "hourly_metrics_microbatch"
+description: "Real-time hourly metrics processing"
+
+variables:
+  microbatch:
+    event_time_column: "timestamp"
+    batch_size: "hour"
+    lookback: 3  # Process last 3 hours on each run
+
+steps:
+  - id: "extract_metrics"
+    type: "source"
+    source_type: "postgresql"
+    config:
+      query: |
+        SELECT 
+          metric_name,
+          metric_value,
+          timestamp
+        FROM metrics
+        WHERE timestamp >= '{{ batch_start.strftime('%Y-%m-%d %H:%M:%S') }}'
+          AND timestamp < '{{ batch_end.strftime('%Y-%m-%d %H:%M:%S') }}'
+      connection: "metrics_db"
+
+  - id: "calculate_hourly_averages"
+    type: "processor"
+    processor_type: "sql"
+    depends_on:
+      - "extract_metrics"
+    config:
+      query: |
+        SELECT 
+          DATE_TRUNC('hour', timestamp) as hour_window,
+          metric_name,
+          AVG(metric_value) as avg_value,
+          COUNT(*) as sample_count
+        FROM input_data
+        GROUP BY DATE_TRUNC('hour', timestamp), metric_name
+
+  - id: "load_hourly_metrics"
+    type: "endpoint"
+    endpoint_type: "postgresql"
+    depends_on:
+      - "calculate_hourly_averages"
+    config:
+      table: "hourly_metric_averages"
+      connection: "analytics_db"
+      event_time_column: "hour_window"
+      schema:
+        hour_window: "TIMESTAMP"
+        metric_name: "VARCHAR(100)"
+        avg_value: "DECIMAL(10,4)"
+        sample_count: "INTEGER"
+
+---
+name: "weekly_reports_microbatch"
+description: "Weekly reporting with lookback for late data"
+
+variables:
+  microbatch:
+    event_time_column: "transaction_date"
+    batch_size: "week"
+    lookback: 1
+    begin: "2024-01-01T00:00:00"
+
+steps:
+  - id: "extract_transactions"
+    type: "source"
+    source_type: "postgresql"
+    config:
+      query: |
+        SELECT 
+          transaction_id,
+          user_id,
+          amount,
+          transaction_date,
+          category
+        FROM transactions
+        WHERE transaction_date >= '{{ batch_start.strftime('%Y-%m-%d') }}'::date
+          AND transaction_date < '{{ batch_end.strftime('%Y-%m-%d') }}'::date
+      connection: "finance_db"
+
+  - id: "weekly_summary"
+    type: "processor"
+    processor_type: "sql"
+    depends_on:
+      - "extract_transactions"
+    config:
+      query: |
+        SELECT 
+          DATE_TRUNC('week', transaction_date) as week_start,
+          category,
+          SUM(amount) as total_amount,
+          COUNT(*) as transaction_count,
+          COUNT(DISTINCT user_id) as unique_users
+        FROM input_data
+        GROUP BY DATE_TRUNC('week', transaction_date), category
+
+  - id: "load_weekly_reports"
+    type: "endpoint"
+    endpoint_type: "postgresql"
+    depends_on:
+      - "weekly_summary"
+    config:
+      table: "weekly_financial_reports"
+      connection: "reports_db"
+      event_time_column: "week_start"
+      schema:
+        week_start: "DATE"
+        category: "VARCHAR(100)"
+        total_amount: "DECIMAL(12,2)"
+        transaction_count: "INTEGER"
+        unique_users: "INTEGER"

@@ -9,6 +9,7 @@ from .config import ProjectConfig, PipelineLoader
 from .pipeline import Pipeline, PipelineStep
 from .factory import ComponentFactory
 from .state import PipelineState, IncrementalProcessor
+from .microbatch import MicrobatchStrategy, MicrobatchConfig, BatchPeriod
 from ..utils.template import TemplateRenderer
 from ..utils.logging import PipelineLogger
 
@@ -86,9 +87,87 @@ class PipelineRunner:
     ) -> bool:
         """Run single pipeline"""
         
+        # Check if pipeline has microbatch configuration
+        microbatch_config = pipeline.variables.get("microbatch")
+        if microbatch_config:
+            return self._run_microbatch_pipeline(pipeline, variables, full_refresh)
+        else:
+            return self._run_regular_pipeline(pipeline, variables, full_refresh)
+    
+    def _run_microbatch_pipeline(
+        self, 
+        pipeline: Pipeline, 
+        variables: Dict[str, Any], 
+        full_refresh: bool = False
+    ) -> bool:
+        """Run pipeline with microbatch strategy"""
+        
+        self.logger.info(f"Running pipeline {pipeline.name} with microbatch strategy")
+        
+        # Parse microbatch configuration
+        mb_config = pipeline.variables["microbatch"]
+        config = MicrobatchConfig(
+            event_time_column=mb_config["event_time_column"],
+            batch_size=BatchPeriod(mb_config["batch_size"]),
+            lookback=mb_config.get("lookback", 1),
+            begin=mb_config.get("begin"),
+            end=mb_config.get("end")
+        )
+        
+        # Create microbatch strategy
+        strategy = MicrobatchStrategy(config, pipeline.name)
+        
+        # Get batch windows to process
+        windows = strategy.get_batch_windows()
+        
+        if not windows:
+            self.logger.info(f"No batch windows to process for pipeline {pipeline.name}")
+            return True
+        
+        self.logger.info(f"Processing {len(windows)} batch windows for pipeline {pipeline.name}")
+        
+        # Process each batch window
+        for i, window in enumerate(windows, 1):
+            self.logger.info(f"Processing batch {i}/{len(windows)}: {window}")
+            
+            # Get batch-specific variables
+            batch_variables = {
+                **variables,
+                **strategy.get_batch_variables(window)
+            }
+            
+            # Run regular pipeline with batch variables
+            success = self._run_regular_pipeline(pipeline, batch_variables, full_refresh)
+            
+            if success:
+                # Mark window as processed
+                strategy.mark_window_processed(window)
+                self.logger.info(f"Successfully processed batch {i}/{len(windows)}: {window}")
+            else:
+                self.logger.error(f"Failed to process batch {i}/{len(windows)}: {window}")
+                self.logger.error(f"Stopping microbatch processing due to failure")
+                return False
+        
+        self.logger.info(f"Successfully completed microbatch pipeline {pipeline.name}: {len(windows)} batches processed")
+        return True
+    
+    def _run_regular_pipeline(
+        self, 
+        pipeline: Pipeline, 
+        variables: Dict[str, Any], 
+        full_refresh: bool = False
+    ) -> bool:
+        """Run regular pipeline"""
+        
         pipeline_logger = PipelineLogger(pipeline.name)
         pipeline_logger.set_total_steps(len(pipeline.steps))
-        execution_id = pipeline_logger.log_pipeline_start()
+        
+        # Check if this is microbatch run and add batch info
+        batch_info = None
+        if variables.get('batch_start') and variables.get('batch_end'):
+            batch_info = f"batch {variables['batch_period']}[{variables['batch_start'].strftime('%Y-%m-%d %H:%M')}-{variables['batch_end'].strftime('%Y-%m-%d %H:%M')}]"
+        
+        execution_id = pipeline_logger.log_pipeline_start(batch_info)
         
         # Initialize pipeline state for incremental processing
         pipeline_state = PipelineState(pipeline.name)
@@ -218,7 +297,19 @@ class PipelineRunner:
                 else:
                     raise ValueError("Endpoint step requires dependencies")
                 
-                success = component.load(input_data, variables)
+                # Check if this is microbatch processing
+                if variables.get('batch_start') and variables.get('batch_end'):
+                    # Use microbatch-aware loading
+                    success = component.load_with_microbatch(
+                        input_data, 
+                        variables,
+                        variables.get('batch_start'),
+                        variables.get('batch_end')
+                    )
+                else:
+                    # Regular loading
+                    success = component.load(input_data, variables)
+                
                 result = input_data  # Pass through data
                 
                 if not success:

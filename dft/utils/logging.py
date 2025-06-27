@@ -83,12 +83,15 @@ class PipelineLogger:
         self.total_steps = count
         self.completed_steps = 0
     
-    def log_pipeline_start(self) -> str:
+    def log_pipeline_start(self, batch_info: Optional[str] = None) -> str:
         """Log pipeline start with clean formatting"""
         execution_id = f"{self.pipeline_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
         # Clean logging output like dbt
-        self.console.print(f"Running {self.total_steps} steps")
+        if batch_info:
+            self.console.print(f"Running {self.total_steps} steps for {batch_info}")
+        else:
+            self.console.print(f"Running {self.total_steps} steps")
         self.console.print("")  # Empty line for separation
         
         return execution_id
