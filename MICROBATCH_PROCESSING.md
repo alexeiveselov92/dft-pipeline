@@ -182,7 +182,7 @@ Microbatch execution provides clear progress logging:
 Running pipeline daily_analytics with microbatch strategy
 Processing 5 batch windows for pipeline daily_analytics
 
-Running 3 steps for batch day[2024-01-01 00:00-2024-01-02 00:00]
+Running 3 steps for batch day [2024-01-01 00:00 - 2024-01-02 00:00]
 
  1 of 3 START extract_events.................................. [RUN] OK 1,234 rows, 2.3MB
  2 of 3 START validate_events................................. [RUN] OK 1,234 rows, 2.3MB  
@@ -191,7 +191,7 @@ Running 3 steps for batch day[2024-01-01 00:00-2024-01-02 00:00]
 Completed successfully
 Successfully processed batch 1/5: day[2024-01-01T00:00:00-2024-01-02T00:00:00]
 
-Running 3 steps for batch day[2024-01-02 00:00-2024-01-03 00:00]
+Running 3 steps for batch day [2024-01-02 00:00 - 2024-01-03 00:00]
 ...
 ```
 

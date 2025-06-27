@@ -165,7 +165,7 @@ class PipelineRunner:
         # Check if this is microbatch run and add batch info
         batch_info = None
         if variables.get('batch_start') and variables.get('batch_end'):
-            batch_info = f"batch {variables['batch_period']}[{variables['batch_start'].strftime('%Y-%m-%d %H:%M')}-{variables['batch_end'].strftime('%Y-%m-%d %H:%M')}]"
+            batch_info = f"batch {variables['batch_period']} [{variables['batch_start'].strftime('%Y-%m-%d %H:%M')} - {variables['batch_end'].strftime('%Y-%m-%d %H:%M')}]"
         
         execution_id = pipeline_logger.log_pipeline_start(batch_info)
         
