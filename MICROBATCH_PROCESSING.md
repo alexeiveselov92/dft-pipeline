@@ -92,16 +92,15 @@ url: "https://api.example.com/data?start={{ batch_start.isoformat() }}&end={{ ba
 Processors work transparently with microbatch - they receive filtered data for each window and process it normally:
 
 ```yaml
-- id: "aggregate_daily"
+- id: "validate_events"
   type: "processor"
-  processor_type: "sql"
+  processor_type: "validator"
   config:
-    query: |
-      SELECT 
-        DATE(created_at) as event_date,
-        COUNT(*) as event_count
-      FROM input_data
-      GROUP BY DATE(created_at)
+    checks:
+      - check: "row_count"
+        min_rows: 1
+      - check: "required_columns"
+        columns: ["user_id", "event_type", "created_at"]
 ```
 
 ## Endpoints
@@ -150,33 +149,29 @@ steps:
           AND created_at < '{{ batch_end.strftime('%Y-%m-%d %H:%M:%S') }}'
       connection: "events_db"
 
-  - id: "aggregate_daily"
+  - id: "validate_events"
     type: "processor"
-    processor_type: "sql"
+    processor_type: "validator"
     depends_on: ["extract_events"]
     config:
-      query: |
-        SELECT 
-          DATE(created_at) as event_date,
-          event_type,
-          COUNT(*) as event_count,
-          COUNT(DISTINCT user_id) as unique_users
-        FROM input_data
-        GROUP BY DATE(created_at), event_type
+      checks:
+        - check: "row_count"
+          min_rows: 1
+        - check: "required_columns"
+          columns: ["user_id", "event_type", "created_at"]
 
-  - id: "load_daily_stats"
+  - id: "load_events"
     type: "endpoint"
     endpoint_type: "postgresql"
-    depends_on: ["aggregate_daily"]
+    depends_on: ["validate_events"]
     config:
-      table: "daily_event_stats"
-      event_time_column: "event_date"
+      table: "processed_events"
+      event_time_column: "created_at"
       connection: "analytics_db"
       schema:
-        event_date: "DATE"
+        user_id: "VARCHAR(100)"
         event_type: "VARCHAR(100)"
-        event_count: "INTEGER"
-        unique_users: "INTEGER"
+        created_at: "TIMESTAMP"
 ```
 
 ## Execution Output
@@ -190,8 +185,8 @@ Processing 5 batch windows for pipeline daily_analytics
 Running 3 steps for batch day[2024-01-01 00:00-2024-01-02 00:00]
 
  1 of 3 START extract_events.................................. [RUN] OK 1,234 rows, 2.3MB
- 2 of 3 START aggregate_daily................................. [RUN] OK 24 rows, 0.01MB  
- 3 of 3 START load_daily_stats................................ [RUN] OK 24 rows
+ 2 of 3 START validate_events................................. [RUN] OK 1,234 rows, 2.3MB  
+ 3 of 3 START load_events..................................... [RUN] OK 1,234 rows
 
 Completed successfully
 Successfully processed batch 1/5: day[2024-01-01T00:00:00-2024-01-02T00:00:00]

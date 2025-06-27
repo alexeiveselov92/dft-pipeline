@@ -26,37 +26,35 @@ steps:
           AND created_at < '{{ batch_end.strftime('%Y-%m-%d %H:%M:%S') }}'
       connection: "events_db"
 
-  # Aggregate events by type
-  - id: "aggregate_events"
+  # Process events data (example with validator)
+  - id: "validate_events"
     type: "processor"
-    processor_type: "sql"
+    processor_type: "validator"
     depends_on:
       - "extract_events"
     config:
-      query: |
-        SELECT 
-          DATE(created_at) as event_date,
-          event_type,
-          COUNT(*) as event_count,
-          COUNT(DISTINCT user_id) as unique_users
-        FROM input_data
-        GROUP BY DATE(created_at), event_type
+      checks:
+        - check: "row_count"
+          min_rows: 1
+        - check: "required_columns"
+          columns: ["event_id", "user_id", "event_type", "created_at"]
 
   # Load to analytics table with automatic batch delete
   - id: "load_daily_stats"
     type: "endpoint"
     endpoint_type: "postgresql"
     depends_on:
-      - "aggregate_events"
+      - "validate_events"
     config:
-      table: "daily_event_stats"
+      table: "validated_events"
       connection: "analytics_db"
-      event_time_column: "event_date"  # Required for microbatch auto-delete
+      event_time_column: "created_at"  # Required for microbatch auto-delete
       schema:
-        event_date: "DATE"
+        event_id: "VARCHAR(100)"
+        user_id: "VARCHAR(100)"
         event_type: "VARCHAR(100)"
-        event_count: "INTEGER"
-        unique_users: "INTEGER"
+        created_at: "TIMESTAMP"
+        data: "JSONB"
 
 ---
 name: "hourly_metrics_microbatch"
@@ -83,35 +81,31 @@ steps:
           AND timestamp < '{{ batch_end.strftime('%Y-%m-%d %H:%M:%S') }}'
       connection: "metrics_db"
 
-  - id: "calculate_hourly_averages"
+  - id: "validate_metrics"
     type: "processor"
-    processor_type: "sql"
+    processor_type: "validator"
     depends_on:
       - "extract_metrics"
     config:
-      query: |
-        SELECT 
-          DATE_TRUNC('hour', timestamp) as hour_window,
-          metric_name,
-          AVG(metric_value) as avg_value,
-          COUNT(*) as sample_count
-        FROM input_data
-        GROUP BY DATE_TRUNC('hour', timestamp), metric_name
+      checks:
+        - check: "required_columns"
+          columns: ["metric_name", "metric_value", "timestamp"]
+        - check: "row_count"
+          min_rows: 1
 
   - id: "load_hourly_metrics"
     type: "endpoint"
     endpoint_type: "postgresql"
     depends_on:
-      - "calculate_hourly_averages"
+      - "validate_metrics"
     config:
-      table: "hourly_metric_averages"
+      table: "raw_metrics"
       connection: "analytics_db"
-      event_time_column: "hour_window"
+      event_time_column: "timestamp"
       schema:
-        hour_window: "TIMESTAMP"
         metric_name: "VARCHAR(100)"
-        avg_value: "DECIMAL(10,4)"
-        sample_count: "INTEGER"
+        metric_value: "DECIMAL(10,4)"
+        timestamp: "TIMESTAMP"
 
 ---
 name: "weekly_reports_microbatch"
@@ -141,34 +135,30 @@ steps:
           AND transaction_date < '{{ batch_end.strftime('%Y-%m-%d') }}'::date
       connection: "finance_db"
 
-  - id: "weekly_summary"
-    type: "processor"
-    processor_type: "sql"
+  - id: "validate_transactions"
+    type: "processor" 
+    processor_type: "validator"
     depends_on:
       - "extract_transactions"
     config:
-      query: |
-        SELECT 
-          DATE_TRUNC('week', transaction_date) as week_start,
-          category,
-          SUM(amount) as total_amount,
-          COUNT(*) as transaction_count,
-          COUNT(DISTINCT user_id) as unique_users
-        FROM input_data
-        GROUP BY DATE_TRUNC('week', transaction_date), category
+      checks:
+        - check: "required_columns"
+          columns: ["transaction_id", "user_id", "amount", "transaction_date", "category"]
+        - check: "row_count"
+          min_rows: 1
 
   - id: "load_weekly_reports"
     type: "endpoint"
     endpoint_type: "postgresql"
     depends_on:
-      - "weekly_summary"
+      - "validate_transactions"
     config:
-      table: "weekly_financial_reports"
+      table: "validated_transactions"
       connection: "reports_db"
-      event_time_column: "week_start"
+      event_time_column: "transaction_date"
       schema:
-        week_start: "DATE"
+        transaction_id: "VARCHAR(100)"
+        user_id: "VARCHAR(100)"
+        amount: "DECIMAL(12,2)"
+        transaction_date: "DATE"
         category: "VARCHAR(100)"
-        total_amount: "DECIMAL(12,2)"
-        transaction_count: "INTEGER"
-        unique_users: "INTEGER"
