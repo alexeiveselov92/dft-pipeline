@@ -1,7 +1,7 @@
 """Simple microbatch strategy for DFT pipelines"""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from enum import Enum
 import logging
@@ -54,7 +54,7 @@ class MicrobatchStrategy:
         
         # Get last processed timestamp
         last_processed = self._get_last_processed_timestamp()
-        now = datetime.now(datetime.UTC)
+        now = datetime.now(timezone.utc)
         
         # Determine start time
         if last_processed is None:

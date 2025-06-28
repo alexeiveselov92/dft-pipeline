@@ -24,6 +24,7 @@ Flexible ETL pipeline framework designed for data analysts and engineers. Build,
 - **[Database Integration Guide](DATABASE_INTEGRATION.md)** - Database connections, upsert operations, and incremental processing  
 - **[Pipeline Dependencies Guide](PIPELINE_DEPENDENCIES.md)** - Inter-pipeline dependencies and execution order
 - **[Microbatch Processing Guide](MICROBATCH_PROCESSING.md)** - Time-based data windows, lookback strategies, and ETL optimization
+- **[A/B Testing Guide](AB_TESTING.md)** - Statistical hypothesis testing for experiments with T-test, Z-test, CUPED, and Bootstrap methods
 
 ## 🚀 Quick Start
 

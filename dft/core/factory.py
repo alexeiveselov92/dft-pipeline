@@ -37,6 +37,7 @@ class ComponentFactory:
             "aggregator": "dft.processors.aggregator.Aggregator",
             "filter": "dft.processors.filter.Filter",
             "transformer": "dft.processors.transformer.Transformer",
+            "ab_testing": "dft.processors.ab_testing.ABTestProcessor",
         }
         
         # Endpoints

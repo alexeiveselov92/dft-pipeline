@@ -1,0 +1,39 @@
+name: "ab_test_ztest_example"
+description: "A/B testing example using Z-test for binary conversion metrics"
+
+variables:
+  microbatch:
+    event_time_column: "event_date"
+    batch_size: "day"
+    lookback: 0
+    begin: "2024-01-01T00:00:00"
+    end: "2024-01-06T00:00:00"
+
+steps:
+  - id: "extract_conversion_data"
+    type: "source"
+    source_type: "csv"
+    config:
+      file_path: "examples/ab_testing/data/experiment_data_ztest.csv"
+
+  - id: "run_ztest"
+    type: "processor"
+    processor_type: "ab_testing"
+    depends_on: ["extract_conversion_data"]
+    config:
+      test_type: "ztest"
+      metric_column: "converted"
+      group_column: "experiment_group"
+      control_group: "control"
+      treatment_group: "treatment"
+      alpha: 0.05
+      test_direction: "relative"
+      calculate_mde: true
+      power: 0.8
+
+  - id: "save_results"
+    type: "endpoint"
+    endpoint_type: "csv"
+    depends_on: ["run_ztest"]
+    config:
+      file_path: "examples/ab_testing/output/ztest_results.csv"
