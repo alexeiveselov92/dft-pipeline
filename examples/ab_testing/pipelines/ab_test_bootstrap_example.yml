@@ -24,8 +24,6 @@ steps:
       test_type: "bootstrap"
       metric_column: "metric_value"
       group_column: "experiment_group"
-      control_group: "control"
-      treatment_group: "treatment"
       alpha: 0.05
       test_direction: "relative"
       n_samples: 1000

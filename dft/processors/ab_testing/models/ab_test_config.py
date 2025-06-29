@@ -7,8 +7,6 @@ class ABTestConfig:
     test_type: Literal["ttest", "ztest", "cuped_ttest", "bootstrap"]
     metric_column: str
     group_column: str
-    control_group: str
-    treatment_group: str
     
     alpha: float = 0.05
     test_direction: Literal["relative", "absolute"] = "relative"

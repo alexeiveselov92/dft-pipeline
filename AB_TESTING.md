@@ -23,11 +23,11 @@ The A/B testing processor allows you to run statistical tests on experiment data
     test_type: "ttest"              # ttest, ztest, cuped_ttest, bootstrap
     metric_column: "revenue"        # Column containing the metric to test
     group_column: "experiment_group" # Column containing group assignments
-    control_group: "control"        # Name of control group
-    treatment_group: "treatment"    # Name of treatment group
     alpha: 0.05                     # Significance level
     test_direction: "relative"      # relative or absolute effect
 ```
+
+**Note**: The processor automatically finds all unique groups in your data and compares each group against every other group. No need to specify control/treatment groups!
 
 ## Test Types
 
@@ -52,8 +52,6 @@ config:
   test_type: "ttest"
   metric_column: "revenue_per_user"
   group_column: "variant"
-  control_group: "control"
-  treatment_group: "treatment"
   alpha: 0.05
   test_direction: "relative"
   calculate_mde: true
@@ -81,8 +79,6 @@ config:
   test_type: "ztest"
   metric_column: "converted"      # Must contain 0/1 values
   group_column: "experiment_group"
-  control_group: "control"
-  treatment_group: "treatment"
   alpha: 0.05
   test_direction: "relative"
 ```
@@ -107,8 +103,6 @@ config:
   test_type: "cuped_ttest"
   metric_column: "revenue"
   group_column: "experiment_group"
-  control_group: "control"
-  treatment_group: "treatment"
   covariate_column: "pre_experiment_revenue"  # Required for CUPED
   alpha: 0.05
   test_direction: "relative"
@@ -134,8 +128,6 @@ config:
   test_type: "bootstrap"
   metric_column: "metric_value"
   group_column: "experiment_group"
-  control_group: "control"
-  treatment_group: "treatment"
   alpha: 0.05
   test_direction: "relative"
   n_samples: 1000                 # Number of bootstrap samples
@@ -152,8 +144,8 @@ config:
 | `test_type` | Statistical test to use | `"ttest"`, `"ztest"`, `"cuped_ttest"`, `"bootstrap"` |
 | `metric_column` | Column containing the metric to test | `"revenue"`, `"converted"` |
 | `group_column` | Column containing group assignments | `"experiment_group"` |
-| `control_group` | Name of the control group | `"control"` |
-| `treatment_group` | Name of the treatment group | `"treatment"` |
+
+**Note**: `control_group` and `treatment_group` are no longer required. The processor automatically detects all groups and compares each against every other.
 
 ### Optional Parameters
 
@@ -195,15 +187,19 @@ Your data must include:
 user_id,experiment_group,revenue,event_date
 1,control,25.50,2024-01-01
 2,treatment,28.20,2024-01-01
-3,control,22.30,2024-01-01
+3,variant_a,30.10,2024-01-01
+4,variant_b,26.80,2024-01-01
+5,control,22.30,2024-01-01
 ```
 
 **For Z-test (binary metrics):**
 ```csv
 user_id,experiment_group,converted,event_date
 1,control,0,2024-01-01
-2,treatment,1,2024-01-01  
-3,control,1,2024-01-01
+2,treatment,1,2024-01-01
+3,variant_a,1,2024-01-01
+4,variant_b,0,2024-01-01
+5,control,1,2024-01-01
 ```
 
 **For CUPED (with pre-experiment data):**
@@ -211,7 +207,9 @@ user_id,experiment_group,converted,event_date
 user_id,experiment_group,revenue,pre_revenue,event_date
 1,control,25.50,24.20,2024-01-01
 2,treatment,28.20,26.80,2024-01-01
-3,control,22.30,21.50,2024-01-01
+3,variant_a,30.10,28.50,2024-01-01
+4,variant_b,26.80,25.90,2024-01-01
+5,control,22.30,21.50,2024-01-01
 ```
 
 ## Microbatch Integration
@@ -250,18 +248,22 @@ steps:
 
 ### Output Columns
 
+Each row represents one pairwise comparison between groups:
+
 | Column | Description |
 |--------|-------------|
-| `control_group` | Name of control group |
-| `treatment_group` | Name of treatment group |
-| `control_mean` | Average metric value for control |
-| `treatment_mean` | Average metric value for treatment |
+| `control_group` | Name of first group in comparison |
+| `treatment_group` | Name of second group in comparison |
+| `control_mean` | Average metric value for first group |
+| `treatment_mean` | Average metric value for second group |
 | `effect` | Measured effect size (treatment - control) |
 | `pvalue` | Statistical significance (p-value) |
 | `significant` | Boolean: true if p-value < alpha |
 | `ci_lower` | Lower bound of confidence interval |
 | `ci_upper` | Upper bound of confidence interval |
 | `method` | Statistical test used |
+
+**Note**: With N groups, you'll get N*(N-1)/2 comparison rows (e.g., 4 groups = 6 comparisons).
 
 ### Interpreting Results
 
@@ -283,9 +285,16 @@ steps:
 ```csv
 control_group,treatment_group,control_mean,treatment_mean,effect,pvalue,significant,ci_lower,ci_upper,method
 control,treatment,100.0,115.0,0.15,0.023,true,0.025,0.275,t-test
+control,variant_a,100.0,125.0,0.25,0.001,true,0.120,0.380,t-test
+treatment,variant_a,115.0,125.0,0.087,0.145,false,-0.032,0.206,t-test
 ```
 
-**Interpretation:** Treatment group shows 15% higher average than control (115.0 vs 100.0). This difference is statistically significant (p=0.023 < 0.05). We're 95% confident the true effect is between 2.5% and 27.5% increase.
+**Interpretation:** 
+- **Control vs Treatment**: 15% increase, statistically significant (p=0.023)
+- **Control vs Variant A**: 25% increase, highly significant (p=0.001) 
+- **Treatment vs Variant A**: 8.7% increase, not significant (p=0.145)
+
+Variant A performs best, significantly better than control. Treatment vs Variant A difference is not conclusive.
 
 ## Best Practices
 

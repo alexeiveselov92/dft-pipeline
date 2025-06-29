@@ -24,8 +24,6 @@ steps:
       test_type: "ttest"
       metric_column: "metric_value"
       group_column: "experiment_group"
-      control_group: "control"
-      treatment_group: "treatment"
       alpha: 0.05
       test_direction: "relative"
       calculate_mde: true

@@ -24,8 +24,6 @@ steps:
       test_type: "cuped_ttest"
       metric_column: "metric_value"
       group_column: "experiment_group"
-      control_group: "control"
-      treatment_group: "treatment"
       covariate_column: "covariate_value"
       alpha: 0.05
       test_direction: "relative"

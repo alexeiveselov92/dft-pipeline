@@ -1,6 +1,7 @@
 import numpy as np
 import pyarrow as pa
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
+from itertools import combinations
 
 from ..models.sample import Sample
 from ..models.ab_test_config import ABTestConfig
@@ -11,7 +12,7 @@ class DataPreparer:
     
     @staticmethod
     def prepare_samples(data: pa.Table, config: ABTestConfig) -> List[Sample]:
-        """Prepare Sample objects from PyArrow Table for all test types"""
+        """Prepare all Sample objects from PyArrow Table for all test types"""
         if config.test_type in ["ttest", "cuped_ttest", "bootstrap"]:
             return DataPreparer._prepare_samples_for_continuous_tests(data, config)
         elif config.test_type == "ztest":
@@ -37,11 +38,17 @@ class DataPreparer:
             if config.covariate_column not in data.column_names:
                 raise ValueError(f"Covariate column '{config.covariate_column}' not found in data")
         
-        samples = []
-        groups = [config.control_group, config.treatment_group]
-        
-        # Convert columns to numpy arrays for filtering
+        # Get all unique groups
         group_array = data[config.group_column].to_numpy()
+        unique_groups = np.unique(group_array)
+        # Filter out None/NaN groups
+        unique_groups = [g for g in unique_groups if g is not None and str(g).lower() != 'nan']
+        
+        if len(unique_groups) < 2:
+            raise ValueError(f"Need at least 2 groups for comparison, found: {len(unique_groups)}")
+        
+        # Prepare individual samples for each group
+        group_samples = {}
         metric_array = data[config.metric_column].to_numpy()
         
         # Get covariate array if needed
@@ -49,12 +56,12 @@ class DataPreparer:
         if config.test_type == "cuped_ttest":
             cov_array_full = data[config.covariate_column].to_numpy()
         
-        for group in groups:
+        for group in unique_groups:
             # Filter by group
             group_mask = group_array == group
             
             if not np.any(group_mask):
-                raise ValueError(f"No data found for group '{group}'")
+                continue
             
             metric_values = metric_array[group_mask]
             
@@ -63,7 +70,7 @@ class DataPreparer:
             metric_values = metric_values[valid_mask]
             
             if len(metric_values) == 0:
-                raise ValueError(f"No valid metric values found for group '{group}'")
+                continue
             
             # Prepare covariate data for CUPED
             cov_array = None
@@ -76,11 +83,12 @@ class DataPreparer:
             sample = Sample(
                 array=metric_values,
                 cov_array=cov_array,
-                name=group
+                name=str(group)
             )
-            samples.append(sample)
+            group_samples[str(group)] = sample
         
-        return samples
+        # Return all samples (tests will handle creating pairs internally)
+        return list(group_samples.values())
     
     @staticmethod 
     def _prepare_samples_for_ztest(data: pa.Table, config: ABTestConfig) -> List[Sample]:
@@ -92,19 +100,25 @@ class DataPreparer:
             if col not in data.column_names:
                 raise ValueError(f"Required column '{col}' not found in data")
         
-        samples = []
-        groups = [config.control_group, config.treatment_group]
-        
-        # Convert columns to numpy arrays for filtering
+        # Get all unique groups
         group_array = data[config.group_column].to_numpy()
+        unique_groups = np.unique(group_array)
+        # Filter out None/NaN groups
+        unique_groups = [g for g in unique_groups if g is not None and str(g).lower() != 'nan']
+        
+        if len(unique_groups) < 2:
+            raise ValueError(f"Need at least 2 groups for comparison, found: {len(unique_groups)}")
+        
+        # Prepare individual samples for each group
+        group_samples = {}
         metric_array = data[config.metric_column].to_numpy()
         
-        for group in groups:
+        for group in unique_groups:
             # Filter by group
             group_mask = group_array == group
             
             if not np.any(group_mask):
-                raise ValueError(f"No data found for group '{group}'")
+                continue
             
             metric_values = metric_array[group_mask]
             
@@ -113,7 +127,7 @@ class DataPreparer:
             metric_values = metric_values[valid_mask]
             
             if len(metric_values) == 0:
-                raise ValueError(f"No valid metric values found for group '{group}'")
+                continue
             
             # Check if values are binary (0/1)
             unique_values = np.unique(metric_values)
@@ -127,11 +141,12 @@ class DataPreparer:
             sample = Sample(
                 array=binary_array,
                 cov_array=None,
-                name=group
+                name=str(group)
             )
-            samples.append(sample)
+            group_samples[str(group)] = sample
         
-        return samples
+        # Return all samples (tests will handle creating pairs internally)
+        return list(group_samples.values())
 
 
 def prepare_samples(data: pa.Table, config: ABTestConfig) -> List[Sample]:

@@ -32,7 +32,7 @@ class ABTestProcessor(DataProcessor):
         # Get data from packet (already PyArrow Table)
         data = packet.data
         
-        # Prepare data - all test types now use Sample objects
+        # Prepare data - get all samples for the groups
         test_data = DataPreparer.prepare_samples(data, ab_config)
         
         # Create and run the statistical test
