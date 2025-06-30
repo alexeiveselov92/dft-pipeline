@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="dft-pipeline",
-    version="0.3.4",
+    version="0.3.5",
     author="Alexei Veselov",
     author_email="alexei.veselov92@gmail.com",
     description="Data Flow Tools - flexible ETL pipeline framework",

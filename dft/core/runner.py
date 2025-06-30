@@ -237,8 +237,8 @@ class PipelineRunner:
             self.logger.error(f"Full traceback:\n{full_traceback}")
             
             # Also print to console for immediate visibility
-            print(f"\n🚨 PIPELINE ERROR: {e}")
-            print(f"📍 Full traceback:\n{full_traceback}")
+            print(f"\nPIPELINE ERROR: {e}")
+            print(f"Full traceback:\n{full_traceback}")
             
             pipeline_logger.log_pipeline_complete(execution_id, False)
             return False
