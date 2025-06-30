@@ -65,8 +65,23 @@ class PipelineLogger:
     
     def __init__(self, pipeline_name: str):
         self.pipeline_name = pipeline_name
-        # Disable logger completely to avoid any conflicts
-        self.logger = None
+        # Keep logger for file logging only
+        self.logger = logging.getLogger(f"dft.pipeline.{pipeline_name}")
+        # Disable console output for this logger to avoid duplication
+        self.logger.propagate = False
+        
+        # Add file handler if not already present
+        if not self.logger.handlers:
+            from pathlib import Path
+            log_dir = Path(".dft/logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = log_dir / f"{pipeline_name}.log"
+            
+            file_handler = logging.FileHandler(log_file)
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+            self.logger.setLevel(logging.INFO)
         
         # Create completely isolated console for clean pipeline output
         import sys
@@ -147,9 +162,11 @@ class PipelineLogger:
         self.console.print(f" [bold red]ERROR[/bold red]")
         self.console.print(f"  {error}")
         
-        # Standard logging for file only
-        # self.logger.error(f"Step '{step_id}' failed: {error}")
+        # Log to file
+        if self.logger:
+            self.logger.error(f"Step '{step_id}' failed: {error}")
     
     def log_metrics(self, step_id: str, metrics: dict) -> None:
         """Log step metrics"""
-        # self.logger.info(f"Step '{step_id}' metrics: {metrics}")
+        if self.logger:
+            self.logger.info(f"Step '{step_id}' metrics: {metrics}")
