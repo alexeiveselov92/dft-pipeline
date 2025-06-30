@@ -230,7 +230,16 @@ class PipelineRunner:
             # Record failed pipeline run
             pipeline_state.add_run_record("failed", pipeline.start_time, pipeline.end_time, str(e))
             
+            # Log full error with traceback
+            import traceback
+            full_traceback = traceback.format_exc()
             self.logger.error(f"Pipeline {pipeline.name} failed: {e}")
+            self.logger.error(f"Full traceback:\n{full_traceback}")
+            
+            # Also print to console for immediate visibility
+            print(f"\n🚨 PIPELINE ERROR: {e}")
+            print(f"📍 Full traceback:\n{full_traceback}")
+            
             pipeline_logger.log_pipeline_complete(execution_id, False)
             return False
     
