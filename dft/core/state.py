@@ -1,10 +1,14 @@
 """State management for incremental processing"""
 
 import json
+import fcntl
+import os
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Optional
 from datetime import datetime, date
+from contextlib import contextmanager
 import logging
 
 
@@ -28,7 +32,7 @@ class StateManager(ABC):
 
 
 class FileStateManager(StateManager):
-    """File-based state manager"""
+    """File-based state manager with atomic writes and file locking"""
     
     def __init__(self, state_dir: str = ".dft/state"):
         self.state_dir = Path(state_dir)
@@ -36,22 +40,36 @@ class FileStateManager(StateManager):
         self.logger = logging.getLogger("dft.state.file")
     
     def get_state(self, key: str, default: Any = None) -> Any:
-        """Get state value from file"""
+        """Get state value from file with shared locking"""
         state_file = self.state_dir / f"{key}.json"
         
         if not state_file.exists():
             return default
         
         try:
-            with open(state_file, 'r') as f:
-                data = json.load(f)
-                return data.get('value', default)
+            with self._file_lock(state_file, fcntl.LOCK_SH):
+                with open(state_file, 'r') as f:
+                    data = json.load(f)
+                    return data.get('value', default)
+        except json.JSONDecodeError as e:
+            # Try backup file if main file is corrupted
+            backup_file = state_file.with_suffix('.backup')
+            if backup_file.exists():
+                self.logger.warning(f"Main state file {key} corrupted, trying backup: {e}")
+                try:
+                    with open(backup_file, 'r') as f:
+                        data = json.load(f)
+                        return data.get('value', default)
+                except Exception:
+                    pass
+            self.logger.warning(f"Failed to read state {key}: {e}")
+            return default
         except Exception as e:
             self.logger.warning(f"Failed to read state {key}: {e}")
             return default
     
     def set_state(self, key: str, value: Any) -> None:
-        """Set state value to file"""
+        """Set state value to file with exclusive locking and atomic writes"""
         state_file = self.state_dir / f"{key}.json"
         
         # Convert dates to strings for JSON serialization
@@ -59,13 +77,17 @@ class FileStateManager(StateManager):
             value = value.isoformat()
         
         try:
-            data = {
-                'value': value,
-                'updated_at': datetime.now().isoformat(),
-            }
-            
-            with open(state_file, 'w') as f:
-                json.dump(data, f, indent=2)
+            with self._file_lock(state_file, fcntl.LOCK_EX):
+                # Create backup before writing
+                self._create_backup(state_file)
+                
+                data = {
+                    'value': value,
+                    'updated_at': datetime.now().isoformat(),
+                }
+                
+                # Atomic write
+                self._atomic_write(state_file, data)
                 
             self.logger.debug(f"Set state {key} = {value}")
             
@@ -78,13 +100,82 @@ class FileStateManager(StateManager):
         if key:
             state_file = self.state_dir / f"{key}.json"
             if state_file.exists():
-                state_file.unlink()
+                with self._file_lock(state_file, fcntl.LOCK_EX):
+                    state_file.unlink()
+                    # Also remove backup if exists
+                    backup_file = state_file.with_suffix('.backup')
+                    if backup_file.exists():
+                        backup_file.unlink()
                 self.logger.info(f"Cleared state {key}")
         else:
             # Clear all state files
             for state_file in self.state_dir.glob("*.json"):
-                state_file.unlink()
+                if not state_file.name.endswith('.backup') and not state_file.name.endswith('.lock'):
+                    with self._file_lock(state_file, fcntl.LOCK_EX):
+                        state_file.unlink()
+                        # Also remove backup if exists
+                        backup_file = state_file.with_suffix('.backup')
+                        if backup_file.exists():
+                            backup_file.unlink()
             self.logger.info("Cleared all state")
+    
+    @contextmanager
+    def _file_lock(self, state_file: Path, lock_type: int):
+        """Context manager for file locking"""
+        lock_file = state_file.with_suffix('.lock')
+        lock_file.touch()
+        
+        with open(lock_file, 'r+') as lock_fd:
+            try:
+                # Try non-blocking lock first
+                fcntl.flock(lock_fd.fileno(), lock_type | fcntl.LOCK_NB)
+            except IOError:
+                # If non-blocking fails, use blocking lock with timeout info
+                self.logger.debug(f"Waiting for lock on {state_file.name}...")
+                fcntl.flock(lock_fd.fileno(), lock_type)
+                self.logger.debug(f"Acquired lock on {state_file.name}")
+            
+            try:
+                yield
+            finally:
+                # Lock automatically released when file is closed
+                pass
+    
+    def _create_backup(self, state_file: Path) -> None:
+        """Create backup of existing state file"""
+        if state_file.exists():
+            backup_file = state_file.with_suffix('.backup')
+            try:
+                shutil.copy2(state_file, backup_file)
+                self.logger.debug(f"Created backup: {backup_file.name}")
+            except IOError as e:
+                # Backup is not critical, just log warning
+                self.logger.warning(f"Failed to create backup for {state_file.name}: {e}")
+    
+    def _atomic_write(self, state_file: Path, data: dict) -> None:
+        """Atomically write data to state file"""
+        temp_file = state_file.with_suffix('.tmp')
+        
+        try:
+            # Write to temporary file
+            with open(temp_file, 'w') as f:
+                json.dump(data, f, indent=2, default=str)
+                f.flush()
+                # Force write to disk
+                os.fsync(f.fileno())
+            
+            # Atomic rename
+            temp_file.rename(state_file)
+            self.logger.debug(f"Atomically wrote to {state_file.name}")
+            
+        except Exception as e:
+            # Clean up temp file on error
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception:
+                    pass
+            raise e
 
 
 class PipelineState:
