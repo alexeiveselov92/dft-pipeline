@@ -20,11 +20,11 @@ Flexible ETL pipeline framework designed for data analysts and engineers. Build,
 
 ## 📚 Documentation
 
-- **[Custom Components Guide](CUSTOM_COMPONENTS.md)** - Develop custom sources, processors, and endpoints
-- **[Database Integration Guide](DATABASE_INTEGRATION.md)** - Database connections, upsert operations, and incremental processing  
-- **[Pipeline Dependencies Guide](PIPELINE_DEPENDENCIES.md)** - Inter-pipeline dependencies and execution order
-- **[Microbatch Processing Guide](MICROBATCH_PROCESSING.md)** - Time-based data windows, lookback strategies, and ETL optimization
-- **[A/B Testing Guide](AB_TESTING.md)** - Statistical hypothesis testing for experiments with T-test, Z-test, CUPED, and Bootstrap methods
+- **[Custom Components Guide](docs/CUSTOM_COMPONENTS.md)** - Develop custom sources, processors, and endpoints
+- **[Database Integration Guide](docs/DATABASE_INTEGRATION.md)** - Database connections, upsert operations, and incremental processing  
+- **[Pipeline Dependencies Guide](docs/PIPELINE_DEPENDENCIES.md)** - Inter-pipeline dependencies and execution order
+- **[Microbatch Processing Guide](docs/MICROBATCH_PROCESSING.md)** - Time-based data windows, lookback strategies, and ETL optimization
+- **[A/B Testing Guide](docs/AB_TESTING.md)** - Statistical hypothesis testing for experiments with T-test, Z-test, CUPED, and Bootstrap methods
 
 ## 🚀 Quick Start
 
@@ -213,7 +213,7 @@ steps:
       api_url: "https://api.example.com/data"
 ```
 
-See **[Custom Components Guide](CUSTOM_COMPONENTS.md)** for detailed examples.
+See **[Custom Components Guide](docs/CUSTOM_COMPONENTS.md)** for detailed examples.
 
 ## 📁 Project Structure
 
