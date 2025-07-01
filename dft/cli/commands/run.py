@@ -72,5 +72,8 @@ def run_pipelines(
             exit(1)
             
     except Exception as e:
+        import traceback
         click.echo(f"Error running pipelines: {e}")
+        click.echo("\nFull traceback:")
+        click.echo(traceback.format_exc())
         exit(1)

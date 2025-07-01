@@ -92,8 +92,8 @@ class MicrobatchStrategy:
     def get_batch_variables(self, window: BatchWindow) -> Dict[str, Any]:
         """Get variables for batch processing"""
         return {
-            'batch_start': window.start,
-            'batch_end': window.end,
+            'batch_start': window.start.isoformat(),
+            'batch_end': window.end.isoformat(),
             'event_time_column': self.config.event_time_column,
             'batch_period': window.period.value,
         }

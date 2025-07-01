@@ -106,12 +106,22 @@ class PipelineRunner:
         
         # Parse microbatch configuration
         mb_config = pipeline.variables["microbatch"]
+        
+        # Parse datetime strings
+        begin_dt = None
+        if mb_config.get("begin"):
+            begin_dt = datetime.fromisoformat(mb_config["begin"])
+        
+        end_dt = None
+        if mb_config.get("end"):
+            end_dt = datetime.fromisoformat(mb_config["end"])
+        
         config = MicrobatchConfig(
             event_time_column=mb_config["event_time_column"],
             batch_size=BatchPeriod(mb_config["batch_size"]),
             lookback=mb_config.get("lookback", 1),
-            begin=mb_config.get("begin"),
-            end=mb_config.get("end")
+            begin=begin_dt,
+            end=end_dt
         )
         
         # Create microbatch strategy
@@ -165,7 +175,7 @@ class PipelineRunner:
         # Check if this is microbatch run and add batch info
         batch_info = None
         if variables.get('batch_start') and variables.get('batch_end'):
-            batch_info = f"batch {variables['batch_period']} [{variables['batch_start'].strftime('%Y-%m-%d %H:%M')} - {variables['batch_end'].strftime('%Y-%m-%d %H:%M')}]"
+            batch_info = f"batch {variables['batch_period']} [{variables['batch_start']} - {variables['batch_end']}]"
         
         execution_id = pipeline_logger.log_pipeline_start(batch_info)
         
@@ -348,6 +358,16 @@ class PipelineRunner:
             step.status = "failed"
             step.end_time = datetime.now()
             step.error_message = str(e)
+            
+            # Log error with full traceback
+            import traceback
+            full_traceback = traceback.format_exc()
+            self.logger.error(f"Step {step.id} failed: {e}")
+            self.logger.error(f"Full traceback:\n{full_traceback}")
+            
+            # Also print to console for immediate visibility
+            print(f"\nSTEP ERROR in {step.id}: {e}")
+            print(f"Full traceback:\n{full_traceback}")
             
             pipeline_logger.log_step_error(step.id, str(e))
             return False
