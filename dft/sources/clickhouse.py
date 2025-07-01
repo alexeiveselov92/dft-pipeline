@@ -49,19 +49,26 @@ class ClickHouseSource(DataSource):
             data, columns = result
             
             # Convert to list of dicts
-            if data and columns:
+            if columns:
                 column_names = [col[0] for col in columns]
                 data_list = []
-                for row in data:
-                    row_dict = {}
-                    for i, value in enumerate(row):
-                        row_dict[column_names[i]] = value
-                    data_list.append(row_dict)
                 
-                # Convert to Arrow table
-                table = pa.table(data_list)
+                if data:
+                    # Has data - convert rows
+                    for row in data:
+                        row_dict = {}
+                        for i, value in enumerate(row):
+                            row_dict[column_names[i]] = value
+                        data_list.append(row_dict)
+                    
+                    # Convert to Arrow table
+                    table = pa.table(data_list)
+                else:
+                    # Empty result but with known schema
+                    empty_data = {col_name: [] for col_name in column_names}
+                    table = pa.table(empty_data)
             else:
-                # Empty result
+                # No columns info - completely empty result
                 table = pa.table({})
             
             # Create data packet
