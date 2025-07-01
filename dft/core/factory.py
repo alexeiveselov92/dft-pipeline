@@ -7,13 +7,15 @@ from pathlib import Path
 from typing import Any, Dict
 from .base import DataSource, DataProcessor, DataEndpoint
 from .config import ProjectConfig
+from ..utils.template import TemplateRenderer
 
 
 class ComponentFactory:
     """Factory for creating DFT components"""
     
-    def __init__(self, project_config: ProjectConfig):
+    def __init__(self, project_config: ProjectConfig, template_renderer: TemplateRenderer = None):
         self.project_config = project_config
+        self.template_renderer = template_renderer or TemplateRenderer()
         self._register_built_in_components()
         self._load_custom_components()
     
@@ -102,6 +104,10 @@ class ComponentFactory:
             project_source_config = self.project_config.sources[source_name]
             # Project config takes precedence for connection details
             merged_config = {**merged_config, **project_source_config}
+        
+        # Render templates in the merged configuration
+        if self.template_renderer:
+            merged_config = self.template_renderer.render_config(merged_config)
         
         return merged_config
     

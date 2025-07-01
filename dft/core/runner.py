@@ -20,8 +20,8 @@ class PipelineRunner:
     def __init__(self):
         self.project_config = ProjectConfig()
         self.pipeline_loader = PipelineLoader(self.project_config)
-        self.factory = ComponentFactory(self.project_config)
         self.template_renderer = TemplateRenderer()
+        self.factory = ComponentFactory(self.project_config, self.template_renderer)
         self.logger = logging.getLogger("dft.runner")
     
     def run(
