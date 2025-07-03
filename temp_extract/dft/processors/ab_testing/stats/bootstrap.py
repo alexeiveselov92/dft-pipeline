@@ -104,8 +104,8 @@ class BootstrapTest(BaseTest):
         std_2 = sample2.std
         
         return TestResult(
-            name_1=sample1.name,
-            name_2=sample2.name,
+            name_1=sample1.name or "control",
+            name_2=sample2.name or "treatment",
             value_1=mean_1,
             value_2=mean_2,
             std_1=std_1,

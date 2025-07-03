@@ -38,15 +38,11 @@ class DataPreparer:
             if config.covariate_column not in data.column_names:
                 raise ValueError(f"Covariate column '{config.covariate_column}' not found in data")
         
-        # Get all unique groups, filtering out None/NaN/empty values first
+        # Get all unique groups
         group_array = data[config.group_column].to_numpy()
-        # Filter out None/NaN/empty values before np.unique to avoid sorting errors
-        valid_groups = [g for g in group_array if g is not None and str(g).lower() != 'nan' and str(g).strip() != '']
-        
-        if len(valid_groups) == 0:
-            raise ValueError(f"No valid groups found in column '{config.group_column}'. All values are None or NaN.")
-        
-        unique_groups = np.unique(valid_groups)
+        unique_groups = np.unique(group_array)
+        # Filter out None/NaN groups
+        unique_groups = [g for g in unique_groups if g is not None and str(g).lower() != 'nan']
         
         if len(unique_groups) < 2:
             raise ValueError(f"Need at least 2 groups for comparison, found: {len(unique_groups)}")
@@ -104,15 +100,11 @@ class DataPreparer:
             if col not in data.column_names:
                 raise ValueError(f"Required column '{col}' not found in data")
         
-        # Get all unique groups, filtering out None/NaN values first  
+        # Get all unique groups
         group_array = data[config.group_column].to_numpy()
-        # Filter out None/NaN values before np.unique to avoid sorting errors
-        valid_groups = [g for g in group_array if g is not None and str(g).lower() != 'nan']
-        
-        if len(valid_groups) == 0:
-            raise ValueError(f"No valid groups found in column '{config.group_column}'. All values are None or NaN.")
-        
-        unique_groups = np.unique(valid_groups)
+        unique_groups = np.unique(group_array)
+        # Filter out None/NaN groups
+        unique_groups = [g for g in unique_groups if g is not None and str(g).lower() != 'nan']
         
         if len(unique_groups) < 2:
             raise ValueError(f"Need at least 2 groups for comparison, found: {len(unique_groups)}")

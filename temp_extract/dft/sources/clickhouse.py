@@ -61,18 +61,11 @@ class ClickHouseSource(DataSource):
                             # Convert datetime.date to string for PyArrow compatibility
                             if hasattr(value, 'isoformat'):  # datetime.date or datetime.datetime
                                 value = value.isoformat()
-                            # Convert empty strings to None for better PyArrow handling
-                            elif value == '':
-                                value = None
                             row_dict[column_names[i]] = value
                         data_list.append(row_dict)
                     
-                    # Convert to Arrow table using column-wise approach
-                    # This avoids schema inference issues with mixed/null values
-                    columns_data = {}
-                    for col_name in column_names:
-                        columns_data[col_name] = [row[col_name] for row in data_list]
-                    table = pa.table(columns_data)
+                    # Convert to Arrow table
+                    table = pa.table(data_list)
                 else:
                     # Empty result but with known schema
                     empty_data = {col_name: [] for col_name in column_names}
@@ -94,8 +87,7 @@ class ClickHouseSource(DataSource):
                 }
             )
             
-            # Log at debug level to avoid cluttering output
-            self.logger.debug(f"Extracted {packet.row_count} rows from ClickHouse")
+            self.logger.info(f"Extracted {packet.row_count} rows from ClickHouse")
             return packet
             
         except Exception as e:

@@ -35,14 +35,14 @@ class TestResult:
     def to_dict(self):
         """Convert TestResult to dictionary for easy serialization"""
         result = {
-            "group_1": self.name_1,
-            "group_2": self.name_2,
-            "mean_1": self.value_1,
-            "mean_2": self.value_2,
-            "std_1": self.std_1,
-            "std_2": self.std_2,
-            "size_1": self.size_1,
-            "size_2": self.size_2,
+            "control_group": self.name_1,
+            "treatment_group": self.name_2,
+            "control_mean": self.value_1,
+            "treatment_mean": self.value_2,
+            "control_std": self.std_1,
+            "treatment_std": self.std_2,
+            "control_size": self.size_1,
+            "treatment_size": self.size_2,
             "method": self.method_name,
             "method_params": self.method_params,
             "alpha": self.alpha,
@@ -52,10 +52,10 @@ class TestResult:
             "ci_lower": self.left_bound,
             "ci_upper": self.right_bound,
             "significant": self.reject,
-            "mde_1": self.mde_1,
-            "mde_2": self.mde_2,
-            "covariate_1": self.cov_value_1 if self.cov_value_1 is not None else 0.0,
-            "covariate_2": self.cov_value_2 if self.cov_value_2 is not None else 0.0
+            "mde_control": self.mde_1,
+            "mde_treatment": self.mde_2,
+            "control_covariate": self.cov_value_1 if self.cov_value_1 is not None else 0.0,
+            "treatment_covariate": self.cov_value_2 if self.cov_value_2 is not None else 0.0
         }
             
         return result

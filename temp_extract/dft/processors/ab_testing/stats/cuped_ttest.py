@@ -104,8 +104,8 @@ class CupedTTest(BaseTest):
             mde_2 = self._calculate_mde(std_2_adj, n_2, n_1)
 
         return TestResult(
-            name_1=sample1.name,
-            name_2=sample2.name,
+            name_1=sample1.name or "control",
+            name_2=sample2.name or "treatment",
             value_1=mean_1_orig,  # Report original means
             value_2=mean_2_orig,
             std_1=sample1.std,    # Report original std
