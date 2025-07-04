@@ -66,7 +66,14 @@ class ClickHouseEndpoint(DataEndpoint):
             if data_list:
                 # Get column names and prepare data
                 columns = list(data_list[0].keys())
-                values = [tuple(row[col] for col in columns) for row in data_list]
+                # Handle None values - replace with empty string for string columns
+                # and appropriate defaults for other types
+                def handle_none_value(value):
+                    if value is None:
+                        return ""  # ClickHouse String columns need empty string instead of None
+                    return value
+                
+                values = [tuple(handle_none_value(row[col]) for col in columns) for row in data_list]
 
                 if mode == "upsert":
                     # Get upsert key columns (required for upsert mode)

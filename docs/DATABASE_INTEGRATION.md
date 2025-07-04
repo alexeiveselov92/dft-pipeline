@@ -10,9 +10,9 @@
 - **Custom Sources** - plugin system for adding your own data sources
 
 ### 📊 Data Endpoints  
-- **PostgreSQL/ClickHouse/MySQL** - automatic table creation from data
+- **PostgreSQL/ClickHouse/MySQL** - automatic table creation with required schema
 - **Load modes**: append, replace, upsert
-- **Smart type detection** from Arrow schema
+- **Explicit schema definition** - schema must be defined for all database endpoints
 - **Custom schema** via configuration
 - **Custom Endpoints** - plugin system for adding your own data destinations
 
@@ -33,6 +33,11 @@
     table: "user_events"
     auto_create: true      # create table automatically
     mode: "append"         # append/replace/upsert
+    schema:                # REQUIRED: schema must be defined
+      user_id: "String"
+      event_date: "Date"
+      event_type: "String"
+      created_at: "DateTime DEFAULT now()"
 ```
 
 ### Custom Schema
@@ -248,7 +253,7 @@ dft run --select transaction_processing --vars start_date=2024-01-01,end_date=20
 ## ❓ FAQ
 
 **Q: Do I need to describe the table schema completely?**
-A: No, DFT automatically determines types from Arrow data. Custom schema is only needed for specific requirements.
+A: Yes, schema is required for all database endpoints. DFT does not automatically determine types from data.
 
 **Q: What if the table already exists?**
 A: With `auto_create: true`, DFT will check for existence. If the table exists, it will be used without changes.

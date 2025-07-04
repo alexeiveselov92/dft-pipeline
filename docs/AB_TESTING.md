@@ -252,16 +252,31 @@ Each row represents one pairwise comparison between groups:
 
 | Column | Description |
 |--------|-------------|
-| `control_group` | Name of first group in comparison |
-| `treatment_group` | Name of second group in comparison |
-| `control_mean` | Average metric value for first group |
-| `treatment_mean` | Average metric value for second group |
-| `effect` | Measured effect size (treatment - control) |
-| `pvalue` | Statistical significance (p-value) |
+| `group_1` | Name of first group in comparison |
+| `group_2` | Name of second group in comparison |
+| `mean_1` | Mean value of metric for group 1 |
+| `mean_2` | Mean value of metric for group 2 |
+| `std_1` | Standard deviation for group 1 |
+| `std_2` | Standard deviation for group 2 |
+| `size_1` | Sample size for group 1 |
+| `size_2` | Sample size for group 2 |
+| `method` | Statistical test method used (t-test, z-test, etc.) |
+| `method_params` | JSON string with test parameters |
+| `alpha` | Significance level used (e.g., 0.05) |
+| `pvalue` | P-value of the statistical test |
+| `effect` | Effect size (mean_2 - mean_1 or relative difference) |
 | `significant` | Boolean: true if p-value < alpha |
+| `ci_length` | Length of confidence interval |
 | `ci_lower` | Lower bound of confidence interval |
 | `ci_upper` | Upper bound of confidence interval |
-| `method` | Statistical test used |
+| `mde_1` | Minimum Detectable Effect for group 1 |
+| `mde_2` | Minimum Detectable Effect for group 2 |
+| `covariate_1` | Covariate value for group 1 (0 if not applicable) |
+| `covariate_2` | Covariate value for group 2 (0 if not applicable) |
+| `test_type` | Type of test conducted (ttest, ztest, bootstrap, cuped_ttest) |
+| `metric_column` | Name of the metric column analyzed |
+| `group_column` | Name of the group column used |
+| `covariate_column` | Name of covariate column (empty if not used) |
 
 **Note**: With N groups, you'll get N*(N-1)/2 comparison rows (e.g., 4 groups = 6 comparisons).
 
