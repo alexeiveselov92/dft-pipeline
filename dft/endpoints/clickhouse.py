@@ -30,7 +30,8 @@ class ClickHouseEndpoint(DataEndpoint):
         # Connection parameters
         host = self.get_config("host", "localhost")
         port = self.get_config("port", 9000)
-        database = self.get_config("database", "default")
+        # Allow table_database to override connection database
+        database = self.get_config("table_database") or self.get_config("database", "default")
         user = self.get_config("user", "default")
         password = self.get_config("password", "")
 
@@ -149,7 +150,7 @@ class ClickHouseEndpoint(DataEndpoint):
     def _table_exists(self, client, table_name: str) -> bool:
         """Check if table exists"""
         try:
-            database = self.get_config("database", "default")
+            database = self.get_config("table_database") or self.get_config("database", "default")
             result = client.execute(
                 "SELECT count() FROM system.tables WHERE database = %s AND name = %s", [database, table_name]
             )
@@ -189,10 +190,11 @@ class ClickHouseEndpoint(DataEndpoint):
         try:
             from clickhouse_driver import Client
 
+            database = self.get_config("table_database") or self.get_config("database", "default")
             client = Client(
                 host=self.get_config("host", "localhost"),
                 port=self.get_config("port", 9000),
-                database=self.get_config("database", "default"),
+                database=database,
                 user=self.get_config("user", "default"),
                 password=self.get_config("password", ""),
             )

@@ -64,7 +64,8 @@
 ```yaml
 config:
   table: "events"
-  database: "analytics"          # database name (default: "default")
+  table_database: "analytics"    # database for table (overrides connection database)
+  database: "analytics"          # database name (default: "default") 
   engine: "MergeTree()"           # table engine
   order_by: "(date, user_id)"     # ORDER BY
   partition_by: "toYYYYMM(date)"  # PARTITION BY (optional)
@@ -135,7 +136,7 @@ steps:
     depends_on: [process_data]
     config:
       table: "daily_analytics"
-      database: "analytics"
+      table_database: "analytics"
       auto_create: true
       mode: "append"
       schema:
@@ -179,7 +180,7 @@ steps:
     depends_on: [extract_transactions]
     config:
       table: "processed_transactions"
-      database: "analytics"
+      table_database: "analytics"
       auto_create: true
       mode: "append"
       schema:
@@ -282,7 +283,7 @@ A: No, it's better to use specific sources (postgresql, clickhouse, mysql) for o
 
 **Q: How do I specify database and schema for different database types?**
 A: Use these parameters:
-- **ClickHouse**: `database` (default: "default")
+- **ClickHouse**: `database` (default: "default") or `table_database` (overrides connection database)
 - **PostgreSQL**: `database` (required) + `pg_schema` (default: "public") 
 - **MySQL**: `database` (required)
 
