@@ -73,7 +73,7 @@ class MySQLSource(DataSource):
                 }
             )
             
-            self.logger.info(f"Extracted {packet.row_count} rows from MySQL")
+            self.logger.debug(f"Extracted {packet.row_count} rows from MySQL")
             return packet
             
         except Exception as e:

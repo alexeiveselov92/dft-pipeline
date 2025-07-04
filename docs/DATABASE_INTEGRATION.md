@@ -64,6 +64,7 @@
 ```yaml
 config:
   table: "events"
+  database: "analytics"          # database name (default: "default")
   engine: "MergeTree()"           # table engine
   order_by: "(date, user_id)"     # ORDER BY
   partition_by: "toYYYYMM(date)"  # PARTITION BY (optional)
@@ -73,6 +74,19 @@ config:
 ```yaml
 config:
   table: "events"
+  database: "analytics"          # database name (required)
+  pg_schema: "public"             # schema namespace (default: "public")
+  schema:
+    user_id: "BIGINT NOT NULL"
+    event_name: "VARCHAR(255)"
+    created_at: "TIMESTAMP DEFAULT NOW()"
+```
+
+**MySQL:**
+```yaml
+config:
+  table: "events"
+  database: "analytics"          # database name (required)
   schema:
     user_id: "BIGINT NOT NULL"
     event_name: "VARCHAR(255)"
@@ -121,6 +135,7 @@ steps:
     depends_on: [process_data]
     config:
       table: "daily_analytics"
+      database: "analytics"
       auto_create: true
       mode: "append"
       schema:
@@ -164,6 +179,7 @@ steps:
     depends_on: [extract_transactions]
     config:
       table: "processed_transactions"
+      database: "analytics"
       auto_create: true
       mode: "append"
       schema:
@@ -263,6 +279,15 @@ A: Use incremental processing, database partitioning, and batch loading modes.
 
 **Q: Do I need a generic "database" source?**
 A: No, it's better to use specific sources (postgresql, clickhouse, mysql) for optimal performance with each database.
+
+**Q: How do I specify database and schema for different database types?**
+A: Use these parameters:
+- **ClickHouse**: `database` (default: "default")
+- **PostgreSQL**: `database` (required) + `pg_schema` (default: "public") 
+- **MySQL**: `database` (required)
+
+**Q: Why don't I see detailed logs about row counts during pipeline execution?**
+A: Row count and upsert operation logs are now at DEBUG level to reduce verbosity. Enable debug logging to see detailed information: set logging level to DEBUG in your configuration.
 
 ## 🔌 Custom Database Components
 

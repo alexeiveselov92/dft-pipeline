@@ -160,7 +160,7 @@ class MySQLEndpoint(DataEndpoint):
                         # If no columns to update, just ignore duplicates
                         insert_sql = f'INSERT IGNORE INTO `{table_name}` ({column_names}) VALUES ({column_placeholders})'
                     
-                    self.logger.info(f"Using upsert mode with keys: {upsert_keys}")
+                    self.logger.debug(f"Using upsert mode with keys: {upsert_keys}")
                 else:
                     # Prepare regular bulk insert SQL
                     insert_sql = f'INSERT INTO `{table_name}` ({column_names}) VALUES ({column_placeholders})'
@@ -173,7 +173,7 @@ class MySQLEndpoint(DataEndpoint):
                 conn.commit()
                 
                 action = "upserted" if mode == "upsert" else "loaded"
-                self.logger.info(f"{action.capitalize()} {len(data_list)} rows to MySQL table {table_name}")
+                self.logger.debug(f"{action.capitalize()} {len(data_list)} rows to MySQL table {table_name}")
             else:
                 self.logger.warning("No data to load to MySQL")
             

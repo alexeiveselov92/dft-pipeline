@@ -129,14 +129,14 @@ class ClickHouseEndpoint(DataEndpoint):
                         client.execute(delete_query)
                         self.logger.info(f"Deleted existing rows for {len(unique_key_values)} unique key combinations")
                     
-                    self.logger.info(f"Using upsert mode with keys: {upsert_keys}")
+                    self.logger.debug(f"Using upsert mode with keys: {upsert_keys}")
 
                 # Insert new data (works for both regular insert and upsert after DELETE)
                 insert_query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES"
                 client.execute(insert_query, values)
 
                 action = "upserted" if mode == "upsert" else "loaded"
-                self.logger.info(f"{action.capitalize()} {len(values)} rows to ClickHouse table {table_name}")
+                self.logger.debug(f"{action.capitalize()} {len(values)} rows to ClickHouse table {table_name}")
             else:
                 self.logger.warning("No data to load to ClickHouse")
 

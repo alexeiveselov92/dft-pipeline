@@ -71,7 +71,7 @@ class PostgreSQLSource(DataSource):
                 }
             )
             
-            self.logger.info(f"Extracted {packet.row_count} rows from PostgreSQL")
+            self.logger.debug(f"Extracted {packet.row_count} rows from PostgreSQL")
             return packet
             
         except Exception as e:

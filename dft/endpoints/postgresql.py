@@ -58,7 +58,8 @@ class PostgreSQLEndpoint(DataEndpoint):
             
             # Handle different load modes
             if mode == "replace":
-                cur.execute(f"TRUNCATE TABLE {table_name}")
+                qualified_table_name = self._get_qualified_table_name(table_name)
+                cur.execute(f"TRUNCATE TABLE {qualified_table_name}")
                 conn.commit()
                 self.logger.info(f"Truncated table {table_name}")
             
@@ -88,15 +89,18 @@ class PostgreSQLEndpoint(DataEndpoint):
                     
                     if update_columns:
                         update_clause = ', '.join([f'"{col}" = EXCLUDED."{col}"' for col in update_columns])
-                        insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({column_placeholders}) ON CONFLICT ({conflict_columns}) DO UPDATE SET {update_clause}'
+                        qualified_table_name = self._get_qualified_table_name(table_name)
+                        insert_sql = f'INSERT INTO {qualified_table_name} ({column_names}) VALUES ({column_placeholders}) ON CONFLICT ({conflict_columns}) DO UPDATE SET {update_clause}'
                     else:
                         # If no columns to update, just ignore conflicts
-                        insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({column_placeholders}) ON CONFLICT ({conflict_columns}) DO NOTHING'
+                        qualified_table_name = self._get_qualified_table_name(table_name)
+                        insert_sql = f'INSERT INTO {qualified_table_name} ({column_names}) VALUES ({column_placeholders}) ON CONFLICT ({conflict_columns}) DO NOTHING'
                     
-                    self.logger.info(f"Using upsert mode with keys: {upsert_keys}")
+                    self.logger.debug(f"Using upsert mode with keys: {upsert_keys}")
                 else:
                     # Prepare regular bulk insert SQL
-                    insert_sql = f'INSERT INTO "{table_name}" ({column_names}) VALUES ({column_placeholders})'
+                    qualified_table_name = self._get_qualified_table_name(table_name)
+                    insert_sql = f'INSERT INTO {qualified_table_name} ({column_names}) VALUES ({column_placeholders})'
                 
                 # Convert data to tuples for bulk insert
                 data_tuples = [tuple(row[col] for col in columns) for row in data_list]
@@ -106,7 +110,7 @@ class PostgreSQLEndpoint(DataEndpoint):
                 conn.commit()
                 
                 action = "upserted" if mode == "upsert" else "loaded"
-                self.logger.info(f"{action.capitalize()} {len(data_list)} rows to PostgreSQL table {table_name}")
+                self.logger.debug(f"{action.capitalize()} {len(data_list)} rows to PostgreSQL table {table_name}")
             else:
                 self.logger.warning("No data to load to PostgreSQL")
             
@@ -118,12 +122,18 @@ class PostgreSQLEndpoint(DataEndpoint):
             self.logger.error(f"Failed to load to PostgreSQL: {e}")
             raise RuntimeError(f"PostgreSQL load failed: {e}")
     
+    def _get_qualified_table_name(self, table_name: str) -> str:
+        """Get fully qualified table name with schema"""
+        pg_schema = self.get_config("pg_schema", "public")
+        return f'"{pg_schema}"."{table_name}"'
+    
     def _table_exists(self, cursor, table_name: str) -> bool:
         """Check if table exists"""
         try:
+            pg_schema = self.get_config("pg_schema", "public")
             cursor.execute(
-                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s)",
-                (table_name,)
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = %s AND table_name = %s)",
+                (pg_schema, table_name)
             )
             return cursor.fetchone()[0]
         except Exception:
@@ -142,9 +152,12 @@ class PostgreSQLEndpoint(DataEndpoint):
         for column_name, column_type in user_schema.items():
             columns.append(f'"{column_name}" {column_type}')
         
-        # Create table SQL
+        # Create table SQL with schema support
+        pg_schema = self.get_config("pg_schema", "public")
+        qualified_table_name = f'"{pg_schema}"."{table_name}"'
+        
         create_sql = f'''
-        CREATE TABLE IF NOT EXISTS "{table_name}" (
+        CREATE TABLE IF NOT EXISTS {qualified_table_name} (
             {', '.join(columns)}
         )
         '''
@@ -180,8 +193,9 @@ class PostgreSQLEndpoint(DataEndpoint):
             cur = conn.cursor()
             
             # Delete data in batch window
+            qualified_table_name = self._get_qualified_table_name(table_name)
             delete_sql = f'''
-            DELETE FROM "{table_name}" 
+            DELETE FROM {qualified_table_name} 
             WHERE "{self.event_time_column}" >= %s 
             AND "{self.event_time_column}" < %s
             '''
