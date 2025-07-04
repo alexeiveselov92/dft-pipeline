@@ -214,7 +214,7 @@ class MySQLEndpoint(DataEndpoint):
         """
         
         cursor.execute(create_sql)
-        self.logger.info(f"Created MySQL table {table_name} with schema: {columns}")
+        self.logger.debug(f"Created MySQL table {table_name} with schema: {columns}")
     
     def test_connection(self) -> bool:
         """Test MySQL connection"""

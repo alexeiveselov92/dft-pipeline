@@ -163,7 +163,7 @@ class PostgreSQLEndpoint(DataEndpoint):
         '''
         
         cursor.execute(create_sql)
-        self.logger.info(f"Created PostgreSQL table {table_name} with schema: {columns}")
+        self.logger.debug(f"Created PostgreSQL table {table_name} with schema: {columns}")
     
     def delete_batch_data(self, batch_start: datetime, batch_end: datetime) -> bool:
         """Delete data for microbatch window"""

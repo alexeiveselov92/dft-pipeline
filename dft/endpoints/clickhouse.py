@@ -182,7 +182,7 @@ class ClickHouseEndpoint(DataEndpoint):
         """
 
         client.execute(create_sql)
-        self.logger.info(f"Created ClickHouse table {table_name} with schema: {columns}")
+        self.logger.debug(f"Created ClickHouse table {table_name} with schema: {columns}")
 
     def test_connection(self) -> bool:
         """Test ClickHouse connection"""
