@@ -144,7 +144,7 @@ class PostgreSQLEndpoint(DataEndpoint):
         
         # Create table SQL
         create_sql = f'''
-        CREATE TABLE "{table_name}" (
+        CREATE TABLE IF NOT EXISTS "{table_name}" (
             {', '.join(columns)}
         )
         '''

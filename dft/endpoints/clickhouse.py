@@ -175,7 +175,7 @@ class ClickHouseEndpoint(DataEndpoint):
         order_by = self.get_config("order_by", "tuple()")
 
         create_sql = f"""
-        CREATE TABLE {table_name} (
+        CREATE TABLE IF NOT EXISTS {table_name} (
             {', '.join(columns)}
         ) ENGINE = {engine}
         ORDER BY {order_by}
